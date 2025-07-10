@@ -10,6 +10,7 @@
 #
 # ===---------------------------------------------------------------------===#
 
+from argparse import Namespace
 import os
 import platform
 import shlex
@@ -44,7 +45,7 @@ class BuildScriptInvocation(object):
     """Represent a single build script invocation.
     """
 
-    def __init__(self, toolchain, args):
+    def __init__(self, toolchain, args: Namespace):
         self.toolchain = toolchain
         self.args = args
 
@@ -684,8 +685,8 @@ class BuildScriptInvocation(object):
                             is_enabled=self.args.build_wasmkit)
         builder.add_product(products.WasmStdlib,
                             is_enabled=self.args.build_wasmstdlib)
-        builder.add_product(products.WasmThreadsStdlib,
-                            is_enabled=self.args.build_wasmstdlib)
+        # builder.add_product(products.WasmThreadsStdlib,
+        #                     is_enabled=self.args.build_wasmstdlib)
         builder.add_product(products.WasmSwiftSDK,
                             is_enabled=self.args.build_wasmstdlib)
 

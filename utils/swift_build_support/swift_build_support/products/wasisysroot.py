@@ -45,8 +45,8 @@ class WASILibc(product.Product):
 
     def build(self, host_target):
         self._build(host_target)
-        self._build(host_target, thread_model='posix',
-                    target_triple='wasm32-wasip1-threads')
+        # self._build(host_target, thread_model='posix',
+        #             target_triple='wasm32-wasip1-threads')
 
     def _build(self, host_target, thread_model='single', target_triple='wasm32-wasi'):
         build_root = os.path.dirname(self.build_dir)
@@ -136,8 +136,8 @@ class WasmLLVMRuntimeLibs(cmake_product.CMakeProduct):
     def build(self, host_target):
         self._build(host_target, enable_wasi_threads=False,
                     compiler_rt_os_dir='wasi', target_triple='wasm32-wasi')
-        self._build(host_target, enable_wasi_threads=True,
-                    compiler_rt_os_dir='wasip1', target_triple='wasm32-wasip1-threads')
+        # self._build(host_target, enable_wasi_threads=True,
+        #             compiler_rt_os_dir='wasip1', target_triple='wasm32-wasip1-threads')
 
     def _build(self, host_target, enable_wasi_threads, compiler_rt_os_dir, target_triple):
         cmake = cmake_product.CMakeProduct(
