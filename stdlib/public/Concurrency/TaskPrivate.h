@@ -1104,14 +1104,19 @@ AsyncTask::flagAsAndEnqueueOnExecutor(SerialExecutorRef newExecutor) {
     }
   }
 
+  fprintf(stderr, "[%s:%d](%s) \n", __FILE__, __LINE__, __FUNCTION__);
+
   // Set up task for enqueue to next location by setting the Job priority field
   Flags.setPriority(oldStatus.getStoredPriority());
+  fprintf(stderr, "[%s:%d](%s) \n", __FILE__, __LINE__, __FUNCTION__);
   concurrency::trace::task_flags_changed(
       this, static_cast<uint8_t>(Flags.getPriority()), Flags.task_isChildTask(),
       Flags.task_isFuture(), Flags.task_isGroupChildTask(),
       Flags.task_isAsyncLetTask());
 
+  fprintf(stderr, "[%s:%d](%s) this is %p, newExecutor is %p\n", __FILE__, __LINE__, __FUNCTION__, this, newExecutor.getIdentity());
   swift_task_enqueue(this, newExecutor);
+  fprintf(stderr, "[%s:%d](%s) \n", __FILE__, __LINE__, __FUNCTION__);
 #endif /* SWIFT_CONCURRENCY_TASK_TO_THREAD_MODEL */
 }
 

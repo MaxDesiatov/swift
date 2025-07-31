@@ -2662,6 +2662,7 @@ extern "C" SWIFT_CC(swift) void _swift_task_makeAnyTaskExecutor(
 
 SWIFT_CC(swift)
 static void swift_task_enqueueImpl(Job *job, SerialExecutorRef serialExecutorRef) {
+  fprintf(stderr, "[%s:%d](%s) \n", __FILE__, __LINE__, __FUNCTION__);
 #ifndef NDEBUG
   auto _taskExecutorRef = TaskExecutorRef::undefined();
   if (auto task = dyn_cast<AsyncTask>(job)) {
@@ -2677,11 +2678,14 @@ static void swift_task_enqueueImpl(Job *job, SerialExecutorRef serialExecutorRef
   job->SchedulerPrivate[1] = NULL;
 
   _swift_tsan_release(job);
+fprintf(stderr, "[%s:%d](%s) \n", __FILE__, __LINE__, __FUNCTION__);
 
   if (serialExecutorRef.isGeneric()) {
     if (auto task = dyn_cast<AsyncTask>(job)) {
       auto taskExecutorRef = task->getPreferredTaskExecutor();
       if (taskExecutorRef.isDefined()) {
+fprintf(stderr, "[%s:%d](%s) \n", __FILE__, __LINE__, __FUNCTION__);
+
 #if SWIFT_CONCURRENCY_EMBEDDED
         swift_unreachable("task executors not supported in embedded Swift");
 #else
