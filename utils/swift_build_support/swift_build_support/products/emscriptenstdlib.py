@@ -219,6 +219,13 @@ class EmscriptenStdlib(cmake_product.CMakeProduct):
 
     def add_extra_cmake_options(self):
         self.cmake_options.define('SWIFT_THREADING_PACKAGE:STRING', 'none')
+        # Emscripten keeps compatibility headers (e.g. xlocale.h) in a
+        # separate include/compat directory that emcc adds automatically.
+        # Since we use raw clang, we need to add it ourselves.
+        sysroot = self._emscripten_sysroot_path('wasm32-emscripten')
+        compat_include = os.path.join(sysroot, 'include', 'compat')
+        self.cmake_options.define('SWIFT_STDLIB_EXTRA_C_COMPILE_FLAGS:STRING',
+                                  '-isystem;' + compat_include)
 
     def test(self, host_target):
         self._test(host_target, 'wasm32-emscripten')
