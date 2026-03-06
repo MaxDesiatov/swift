@@ -381,6 +381,8 @@ macro(configure_sdk_unix name architectures)
     else()
       set(_default_threading_package "none")
     endif()
+  elseif("${prefix}" STREQUAL "EMSCRIPTEN")
+    set(_default_threading_package "none")
   endif()
   get_threading_package(${prefix} ${_default_threading_package}
     SWIFT_SDK_${prefix}_THREADING_PACKAGE)

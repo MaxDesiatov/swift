@@ -51,7 +51,9 @@ foreach(sdk ${SWIFT_SDKS})
   # Darwin targets have libdispatch available, do not build it.
   # Wasm/WASI doesn't support libdispatch yet.
   # See https://github.com/apple/swift/issues/54533 for more details.
-  if(NOT "${sdk}" IN_LIST SWIFT_DARWIN_PLATFORMS AND NOT "${sdk}" STREQUAL "WASI")
+  if(NOT "${sdk}" IN_LIST SWIFT_DARWIN_PLATFORMS
+     AND NOT "${sdk}" STREQUAL "WASI"
+     AND NOT "${sdk}" STREQUAL "EMSCRIPTEN")
     list(APPEND DISPATCH_SDKS "${sdk}")
   endif()
 endforeach()
