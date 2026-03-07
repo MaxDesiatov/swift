@@ -303,7 +303,7 @@ public enum POSIXErrorCode: Int32, Sendable {
   case EHWPOISON       = 133
 }
 
-#elseif os(WASI)
+#elseif os(WASI) || os(Emscripten)
 
 // Matches WASI-libc declarations at https://github.com/WebAssembly/wasi-libc/blob/ad513341/libc-bottom-half/headers/public/wasi/api.h#L106
 
