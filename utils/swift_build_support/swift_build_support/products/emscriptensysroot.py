@@ -11,6 +11,7 @@
 # ----------------------------------------------------------------------------
 
 import os
+import shutil
 import sys
 
 from . import cmake_product
@@ -69,6 +70,21 @@ class EmscriptenSysroot(product.Product):
         if os.path.exists(sysroot_dst):
             shell.rmtree(sysroot_dst)
         shell.copytree(sysroot_src, sysroot_dst)
+
+        # When using a prebuilt Emscripten SDK, EmscriptenLLVMRuntimeLibs is
+        # skipped, but lit tests still need libclang_rt.builtins.a in the
+        # resource-dir. Create it from embuilder's libcompiler_rt.a.
+        resource_dir = EmscriptenSysroot.resource_dir_install_path(
+            build_root, target_triple)
+        builtins_src = os.path.join(
+            sysroot_dst, 'lib', target_triple, 'libcompiler_rt.a')
+        builtins_dst_dir = os.path.join(
+            resource_dir, 'lib', 'wasm32-unknown-emscripten')
+        if os.path.exists(builtins_src):
+            os.makedirs(builtins_dst_dir, exist_ok=True)
+            shutil.copy2(builtins_src,
+                         os.path.join(builtins_dst_dir,
+                                      'libclang_rt.builtins.a'))
 
     @classmethod
     def get_dependencies(cls):
