@@ -70,7 +70,8 @@ module SwiftEmscriptenLibc [system] {
   header "unistd.h"
   header "utime.h"
 
-  // WASI specific (present in the Emscripten sysroot)
+  // Emscripten's musl-based libc uses WASI's errno ABI: <bits/errno.h>
+  // includes this header and maps POSIX errno names to __WASI_ERRNO_* values.
   header "wasi/api.h"
   export *
 }

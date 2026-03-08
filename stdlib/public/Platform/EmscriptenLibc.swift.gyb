@@ -64,8 +64,13 @@ public let ${prefix}_TRUE_MIN = ${type}.leastNonzeroMagnitude
 
 public let MAP_FAILED: UnsafeMutableRawPointer! = UnsafeMutableRawPointer(bitPattern: -1)
 
-// NOTE: The Emscripten sysroot's errno.h defines error codes via __WASI_ERRNO_*
-// macros, which ClangImporter can't import for now.
+// NOTE: Emscripten's musl-based libc defines errno codes via __WASI_ERRNO_*
+// macros (from <wasi/api.h>), which are function-like macros that
+// ClangImporter can't import. Emscripten adopted WASI's errno ABI for its
+// low-level syscall interface, so most codes use WASI numbering (1–76).
+// EOPNOTSUPP and ENOTSUP diverge: Emscripten uses Linux/musl value 138 rather
+// than WASI's value 58. ENOTCAPABLE is omitted as it is a WASI-only capability
+// error not exposed by Emscripten's <bits/errno.h>.
 %{
 posix_error_codes = [
   "E2BIG",
@@ -145,7 +150,6 @@ posix_error_codes = [
   "ETIMEDOUT",
   "ETXTBSY",
   "EXDEV",
-  "ENOTCAPABLE",
 ]
 }%
 
