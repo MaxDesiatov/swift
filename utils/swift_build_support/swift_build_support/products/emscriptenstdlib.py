@@ -11,6 +11,7 @@
 # ----------------------------------------------------------------------------
 
 import os
+import shutil
 
 from . import cmake_product
 from . import emscriptensysroot
@@ -237,14 +238,12 @@ class EmscriptenStdlib(cmake_product.CMakeProduct):
             os.path.join(self._host_llvm_build_dir(host_target), 'bin'),
             os.environ['PATH']
         ]
-        wasmkit_build_path = os.path.join(
-            build_root, '%s-%s' % ('wasmkit', host_target))
-        wasmkit_bin_path = wasmkit.WasmKit.cli_file_path(wasmkit_build_path)
-        if not os.path.exists(wasmkit_bin_path):
-            test_target = "check-swift-only_non_executable-emscripten-wasm32-custom"
-        else:
+
+        # Emscripten executables are .js files run by Node.js, not WasmKit
+        if shutil.which('node') is not None:
             test_target = "check-swift-emscripten-wasm32-custom"
-            bin_paths = [os.path.dirname(wasmkit_bin_path)] + bin_paths
+        else:
+            test_target = "check-swift-only_non_executable-emscripten-wasm32-custom"
 
         env = {
             'PATH': os.path.pathsep.join(bin_paths),
