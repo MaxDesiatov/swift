@@ -44,7 +44,7 @@ internal import ObjectiveC
 import _Concurrency
 #endif
 
-#if os(WASI)
+#if os(WASI) || os(Emscripten)
 let platformSupportsChildProcesses = false
 #else
 let platformSupportsChildProcesses = true
