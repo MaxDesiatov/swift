@@ -11,6 +11,7 @@
 // RUN: %target-run %t/Assert_Unchecked
 // REQUIRES: executable_test
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
 
 import StdlibUnittest
 

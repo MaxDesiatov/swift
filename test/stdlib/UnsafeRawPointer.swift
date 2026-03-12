@@ -126,7 +126,7 @@ UnsafeMutableRawPointerExtraTestSuite.test("load.unaligned")
   expectEqual(result, 0xffff_0000)
 }
 
-#if !os(WASI)
+#if !os(WASI) && !os(Emscripten)
 UnsafeMutableRawPointerExtraTestSuite.test("load.invalid")
 .skip(.custom({ !_isDebugAssertConfiguration() },
               reason: "This tests a debug precondition.."))
@@ -178,7 +178,7 @@ UnsafeMutableRawPointerExtraTestSuite.test("store.unaligned")
               0)
 }
 
-#if !os(WASI)
+#if !os(WASI) && !os(Emscripten)
 UnsafeMutableRawPointerExtraTestSuite.test("store.invalid")
 .skip(.custom({ !_isDebugAssertConfiguration() },
               reason: "This tests a debug precondition.."))
@@ -303,8 +303,8 @@ func checkPtr(
   }
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 UnsafeMutableRawPointerExtraTestSuite.test("initializeMemory:as:from:count:") {
   let check = checkPtr(UnsafeMutableRawPointer.initializeMemory(as:from:count:))
   check(Check.Disjoint)

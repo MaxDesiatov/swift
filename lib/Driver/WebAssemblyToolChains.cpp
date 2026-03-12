@@ -122,8 +122,7 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
       StringRef toolchainPath(A->getValue());
       if (auto tool = llvm::sys::findProgramByName("emcc", {toolchainPath}))
         LinkerDriver = context.Args.MakeArgString(tool.get());
-      Arguments.push_back("-B");
-      Arguments.push_back(context.Args.MakeArgString(toolchainPath));
+      // emcc manages its own tool search; don't pass -B.
     }
   } else {
     LinkerDriver = "clang";
@@ -236,27 +235,6 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
         std::to_string(SWIFT_WASM_DEFAULT_STACK_SIZE)));
   }
 
-  // Emscripten's libc is split into separate archives. The memory allocator
-  // lives in libdlmalloc and standalone-mode support (exit, memory growth,
-  // etc.) lives in libstandalonewasm. emcc adds these automatically, but when
-  // linking via clang they must be specified explicitly.
-  if (isEmscripten) {
-    // Point the linker at the SDK's library directory so it can find the
-    // Emscripten system libraries built by embuilder.
-    if (!context.OI.SDKPath.empty()) {
-      // Use the multiarch triple (arch-os, without vendor) to match the
-      // sysroot directory layout that clang/emcc expects.
-      std::string MultiarchTriple =
-          (getTriple().getArchName() + "-" + getTriple().getOSName()).str();
-      SmallString<128> SysLibDir(context.OI.SDKPath);
-      llvm::sys::path::append(SysLibDir, "lib", MultiarchTriple);
-      Arguments.push_back("-L");
-      Arguments.push_back(context.Args.MakeArgString(SysLibDir));
-    }
-    Arguments.push_back("-ldlmalloc");
-    Arguments.push_back("-lstandalonewasm");
-  }
-
   // Delegate to Clang for sanitizers. It will figure out the correct linker
   // options.
   if (job.getKind() == LinkKind::Executable && context.OI.SelectedSanitizers) {
@@ -284,10 +262,12 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
 
   // These custom arguments should be right before the object file at the end.
   context.Args.AddAllArgs(Arguments, options::OPT_linker_option_Group);
+  context.Args.AddAllArgs(Arguments, options::OPT_Xlinker);
+  // -Xclang-linker passes arguments directly to clang when it acts as
+  // the linker driver. emcc is not clang, so skip these for Emscripten.
   if (!isEmscripten) {
-    context.Args.AddAllArgs(Arguments, options::OPT_Xlinker);
+    context.Args.AddAllArgValues(Arguments, options::OPT_Xclang_linker);
   }
-  context.Args.AddAllArgValues(Arguments, options::OPT_Xclang_linker);
 
   // This should be the last option, for convenience in checking output.
   Arguments.push_back("-o");

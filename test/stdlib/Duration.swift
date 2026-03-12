@@ -28,7 +28,7 @@ if #available(SwiftStdlib 5.7, *) {
     // Divide by 1000 to get back to a duration with representable components:
     let smallerDuration = duration / 1000
     expectEqual(smallerDuration.components, (170_000_000_000_000_000, 0))
-#if !os(WASI)
+#if !os(WASI) && !os(Emscripten)
     // Now check that the components of the original value trap:
     expectCrashLater()
     let _ = duration.components
@@ -168,7 +168,7 @@ if #available(SwiftStdlib 6.0, *) {
     let minRep = Duration.seconds(-166020696663385964544 as Int128)
     expectEqual(minRep._high,-9_000_000_000_000_000_000)
     expectEqual(minRep._low, 0)
-    #if !os(WASI)
+    #if !os(WASI) && !os(Emscripten)
     //  Check just above the overflow boundary
     expectCrashLater()
     let _ = Duration.seconds( 170141183460469231732 as Int128)
@@ -188,7 +188,7 @@ if #available(SwiftStdlib 6.0, *) {
     let minRep = Duration.milliseconds(-170134320591823194554368 as Int128)
     expectEqual(minRep._high,-9_223_000_000_000_000_000)
     expectEqual(minRep._low, 0)
-    #if !os(WASI)
+    #if !os(WASI) && !os(Emscripten)
     //  Check just above the overflow boundary
     expectCrashLater()
     let _ = Duration.milliseconds( 170141183460469231731689 as Int128)
@@ -208,7 +208,7 @@ if #available(SwiftStdlib 6.0, *) {
     let minRep = Duration.microseconds(-170141182780618614507569152 as Int128)
     expectEqual(minRep._high,-9_223_372_000_000_000_000)
     expectEqual(minRep._low, 0)
-    #if !os(WASI)
+    #if !os(WASI) && !os(Emscripten)
     //  Check just above the overflow boundary
     expectCrashLater()
     let _ = Duration.microseconds( 170141183460469231731687304 as Int128)
@@ -228,7 +228,7 @@ if #available(SwiftStdlib 6.0, *) {
     let minRep = Duration.nanoseconds(-170141183444701401161113010176 as Int128)
     expectEqual(minRep._high,-9_223_372_036_000_000_000)
     expectEqual(minRep._low, 0)
-    #if !os(WASI)
+    #if !os(WASI) && !os(Emscripten)
     //  Check just above the overflow boundary
     expectCrashLater()
     let _ = Duration.nanoseconds( 170141183460469231731687303716 as Int128)

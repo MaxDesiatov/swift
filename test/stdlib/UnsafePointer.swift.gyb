@@ -305,8 +305,8 @@ func checkPtr(
   }
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 UnsafeMutablePointerTestSuite.test("moveAssign:from:") {
   let check = checkPtr(UnsafeMutablePointer.moveAssign, true)
   check(Check.Disjoint)
@@ -341,8 +341,8 @@ UnsafeMutablePointerTestSuite.test("moveInitialize:from:") {
   check(Check.RightOverlap)
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 UnsafeMutablePointerTestSuite.test("initialize:from:") {
   let check = checkPtr(UnsafeMutablePointer.initialize(from:count:), false)
   check(Check.Disjoint)
@@ -537,7 +537,7 @@ ${SelfName}TestSuite.test("pointer(to:)") {
 % end
 }
 
-#if !os(WASI)
+#if !os(WASI) && !os(Emscripten)
 ${SelfName}TestSuite.test("pointer(to:).overflow") {
   struct Example {
     var a = false

@@ -15,6 +15,7 @@ from .cmark import CMark
 from .curl import LibCurl
 from .earlyswiftdriver import EarlySwiftDriver
 from .emscriptenstdlib import EmscriptenStdlib
+from .emscriptenswiftsdk import EmscriptenSwiftSDK
 from .emscriptensysroot import EmscriptenSysroot, EmscriptenLLVMRuntimeLibs
 from .foundation import Foundation
 from .foundationtests import FoundationTests
@@ -94,4 +95,5 @@ __all__ = [
     'EmscriptenSysroot',
     'EmscriptenLLVMRuntimeLibs',
     'EmscriptenStdlib',
+    'EmscriptenSwiftSDK',
 ]

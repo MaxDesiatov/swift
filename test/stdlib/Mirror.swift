@@ -1026,8 +1026,8 @@ mirrors.test("Addressing") {
   expectNil(m.descendant(1, 1, "bork"))
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 mirrors.test("Invalid Path Type")
   .skip(.custom(
     { _isFastAssertConfiguration() },

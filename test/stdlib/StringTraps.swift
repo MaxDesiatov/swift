@@ -12,6 +12,7 @@
 
 // REQUIRES: executable_test
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
 
 import StdlibUnittest
 #if _runtime(_ObjC)

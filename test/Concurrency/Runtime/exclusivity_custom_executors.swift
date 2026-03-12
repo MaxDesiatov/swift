@@ -15,6 +15,7 @@
 
 // Crash expectations can't be implemented on WASI/WebAssembly.
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
 
 // This test makes sure that we properly save/restore access when we
 // synchronously launch a task from a serial executor. The access from the task

@@ -73,8 +73,8 @@ StaticStringTestSuite.test("PointerRepresentation/NonASCII") {
   expectDebugPrinted("\"абв\"", str)
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 StaticStringTestSuite.test("PointerRepresentation/unicodeScalar")
   .skip(.custom(
     { _isFastAssertConfiguration() },
@@ -126,8 +126,8 @@ StaticStringTestSuite.test("UnicodeScalarRepresentation/NonASCII") {
   expectDebugPrinted("\"Ы\"", str)
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 StaticStringTestSuite.test("UnicodeScalarRepresentation/utf8Start")
   .skip(.custom(
     { _isFastAssertConfiguration() },

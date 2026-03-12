@@ -61,7 +61,7 @@ class EmscriptenSysroot(product.Product):
             sys.executable, embuilder, 'build',
             'libc', 'libcompiler_rt', 'libc++', 'libc++abi',
             'crt1', 'libstubs',
-            'libdlmalloc', 'libstandalonewasm',
+            'libdlmalloc',
         ], env=env)
 
         # Copy the built sysroot to the canonical install path

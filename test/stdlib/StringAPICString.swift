@@ -7,7 +7,7 @@
 
 import StdlibUnittest
 
-#if os(WASI)
+#if os(WASI) || os(Emscripten)
 let enableCrashTests = false
 #else
 let enableCrashTests = true

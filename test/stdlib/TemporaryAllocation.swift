@@ -70,7 +70,7 @@ TemporaryAllocationTestSuite.test("untypedEmptyAllocationIsStackAllocated") {
   }
 }
 
-#if !os(WASI)
+#if !os(WASI) && !os(Emscripten)
 TemporaryAllocationTestSuite.test("crashOnNegativeByteCount") {
   expectCrash {
     let byteCount = Int.random(in: -2 ..< -1)
@@ -138,7 +138,7 @@ TemporaryAllocationTestSuite.test("voidAllocationIsStackAllocated") {
   }
 }
 
-#if !os(WASI)
+#if !os(WASI) && !os(Emscripten)
 TemporaryAllocationTestSuite.test("crashOnNegativeValueCount") {
   expectCrash {
     let capacity = Int.random(in: -2 ..< -1)

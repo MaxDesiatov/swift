@@ -342,8 +342,8 @@ OptionalTests.test("Casting Optional") {
   expectTrue(anyToAnyIsOptional(Optional<(String, String)>.none, Bool.self))
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 OptionalTests.test("Casting Optional Traps") {
   let nx: C? = nil
   expectCrash { _blackHole(anyToAny(nx, Int.self)) }
@@ -414,8 +414,8 @@ OptionalTests.test("unsafelyUnwrapped") {
   expectEqual(3, nonEmpty.unsafelyUnwrapped)
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 OptionalTests.test("unsafelyUnwrapped nil")
   .xfail(.custom(
     { !_isDebugAssertConfiguration() },

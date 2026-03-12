@@ -18,7 +18,7 @@ struct TestError: Error {}
     var tests = TestSuite("CheckedContinuation")
 
     if #available(SwiftStdlib 5.1, *) {
-      #if !os(WASI)
+      #if !os(WASI) && !os(Emscripten)
       tests.test("trap on double resume non-throwing continuation") {
         expectCrashLater()
 

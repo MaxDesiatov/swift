@@ -23,8 +23,8 @@ RepeatTests.test("associated-types") {
       indicesType: CountableRange<Int>.self)
 }
 
-#if !os(WASI)
-// Trap tests aren't available on WASI.
+#if !os(WASI) && !os(Emscripten)
+// Trap tests aren't available on WASI/Emscripten.
 RepeatTests.test("out-of-bounds") {
   let sequence = repeatElement(0, count: 1)
   expectCrashLater()
