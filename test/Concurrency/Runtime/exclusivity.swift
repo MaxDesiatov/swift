@@ -9,6 +9,7 @@
 // REQUIRES: concurrency_runtime
 // UNSUPPORTED: back_deployment_runtime
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
 // UNSUPPORTED: back_deploy_concurrency
 
 // This test makes sure that:

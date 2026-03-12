@@ -2,6 +2,7 @@
 // REQUIRES: executable_test
 // UNSUPPORTED: OS=windows-msvc
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
 
 import StdlibUnittest
 #if canImport(Darwin)

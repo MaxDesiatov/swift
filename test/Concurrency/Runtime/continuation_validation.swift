@@ -13,6 +13,7 @@
 // UNSUPPORTED: use_os_stdlib
 // UNSUPPORTED: freestanding
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
 
 import StdlibUnittest
 

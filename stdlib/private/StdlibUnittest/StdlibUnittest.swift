@@ -2291,7 +2291,7 @@ public enum TestRequirement: CustomStringConvertible {
       !version.isAvailable
     case .crashTesting:
       switch _getRunningOSVersion() {
-      case .wasi:
+      case .wasi, .emscripten:
         true
       default:
         false

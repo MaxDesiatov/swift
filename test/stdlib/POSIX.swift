@@ -2,6 +2,7 @@
 // REQUIRES: executable_test
 // UNSUPPORTED: OS=windows-msvc
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
 // UNSUPPORTED: OS=freebsd
 
 import StdlibUnittest
