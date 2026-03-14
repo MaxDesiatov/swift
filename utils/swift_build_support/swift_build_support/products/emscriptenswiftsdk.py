@@ -20,6 +20,7 @@ shared build logic is delegated to ``wasmswiftsdkhelpers``.
 """
 
 import os
+import shutil
 
 from . import emscriptensysroot
 from . import product
@@ -80,6 +81,11 @@ class EmscriptenSwiftSDK(product.Product):
         cmake_options.define('CMAKE_CXX_FLAGS', ' '.join(cxx_flags))
         cmake_options.define('CMAKE_Swift_COMPILER_FORCED', 'TRUE')
         cmake_options.define('CMAKE_CXX_COMPILER_FORCED', 'TRUE')
+        # Emscripten's crt1.o requires __main_void and exit, so CMake's
+        # try_compile linking tests fail.  Build static libraries instead
+        # of executables for compiler/feature detection so that both the
+        # initial compiler test and check_include_files() work correctly.
+        cmake_options.define('CMAKE_TRY_COMPILE_TARGET_TYPE', 'STATIC_LIBRARY')
         cmake_options.define('CMAKE_BUILD_TYPE', self.args.build_variant)
 
         if not self.args.build_runtime_with_host_compiler:
@@ -110,32 +116,39 @@ class EmscriptenSwiftSDK(product.Product):
             self.toolchain.cmake, stdlib_build_path,
             resource_dir, dest_dir)
 
-        # TODO: Build libxml2, Foundation, swift-testing, and XCTest for
-        # Emscripten once those libraries have been ported.  The platform
-        # CMake options are already wired up via
-        # _append_platform_cmake_options; the helper calls below just need
+        # TODO: Build XCTest for Emscripten once it has been ported.
+        # The platform CMake options are already wired up via
+        # _append_platform_cmake_options; the helper call below just needs
         # to be uncommented when the porting work is done.
-        #
-        # def append_cmake_opts(cmake_options, extra_swift_flags,
-        #                       _triple=swift_host_triple,
-        #                       _sysroot=sysroot):
-        #     self._append_platform_cmake_options(
-        #         cmake_options, _triple, _sysroot, extra_swift_flags)
-        #
-        # host_toolchain_path = self.native_toolchain_path(
-        #     self.args.host_target)
-        #
-        # helpers.build_libxml2(
-        #     self.args, self.toolchain, self.source_dir, self.build_dir,
-        #     swift_host_triple, clang_multiarch_triple,
-        #     False, sysroot, append_cmake_opts)
-        # helpers.build_foundation(
-        #     self.args, self.toolchain, self.source_dir, self.build_dir,
-        #     swift_host_triple, clang_multiarch_triple,
-        #     sysroot, dest_dir, host_toolchain_path, append_cmake_opts)
-        # helpers.build_swift_testing(
-        #     self.args, self.toolchain, self.source_dir, self.build_dir,
-        #     swift_host_triple, dest_dir, append_cmake_opts)
+
+        def append_cmake_opts(cmake_options, extra_swift_flags,
+                              _triple=swift_host_triple,
+                              _sysroot=sysroot):
+            self._append_platform_cmake_options(
+                cmake_options, _triple, _sysroot, extra_swift_flags)
+
+        host_toolchain_path = self.native_toolchain_path(
+            self.args.host_target)
+
+        # Clean sub-build directories when reconfiguring so that stale
+        # CMake cache entries (e.g. HAVE_UNISTD_H) don't persist.
+        if self.args.reconfigure:
+            for subdir in ['libxml2', 'foundation']:
+                d = os.path.join(self.build_dir, subdir)
+                if os.path.isdir(d):
+                    shutil.rmtree(d)
+
+        helpers.build_libxml2(
+            self.args, self.toolchain, self.source_dir, self.build_dir,
+            swift_host_triple, clang_multiarch_triple,
+            False, sysroot, append_cmake_opts)
+        helpers.build_foundation(
+            self.args, self.toolchain, self.source_dir, self.build_dir,
+            swift_host_triple, clang_multiarch_triple,
+            sysroot, dest_dir, host_toolchain_path, append_cmake_opts)
+        helpers.build_swift_testing(
+            self.args, self.toolchain, self.source_dir, self.build_dir,
+            swift_host_triple, dest_dir, append_cmake_opts)
         # helpers.build_xctest(
         #     self.args, self.toolchain, self.source_dir, self.build_dir,
         #     swift_host_triple, dest_dir, append_cmake_opts)
