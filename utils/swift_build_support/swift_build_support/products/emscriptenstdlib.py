@@ -209,7 +209,7 @@ class EmscriptenStdlib(cmake_product.CMakeProduct):
                                   ';'.join(lit_test_paths))
         self.cmake_options.define('LLVM_LIT_ARGS', self.args.lit_args)
         test_driver_options = [
-            '-Xclang-linker',
+            '-Xemcc-linker',
             '-resource-dir=' + self._emscripten_resource_dir_path(target_triple),
         ]
         self.cmake_options.define('SWIFT_DRIVER_TEST_OPTIONS:STRING',

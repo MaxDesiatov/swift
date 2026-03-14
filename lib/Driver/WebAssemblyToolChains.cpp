@@ -268,6 +268,11 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
   if (!isEmscripten) {
     context.Args.AddAllArgValues(Arguments, options::OPT_Xclang_linker);
   }
+  // -Xemcc-linker passes arguments directly to emcc when it acts as
+  // the linker driver for Emscripten targets.
+  if (isEmscripten) {
+    context.Args.AddAllArgValues(Arguments, options::OPT_Xemcc_linker);
+  }
 
   // This should be the last option, for convenience in checking output.
   Arguments.push_back("-o");

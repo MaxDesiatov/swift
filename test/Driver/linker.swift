@@ -65,6 +65,8 @@
 
 // RUN: %swiftc_driver -sdk "" -driver-print-jobs -target wasm32-unknown-wasi -Xclang-linker -flag -Xclang-linker arg %s 2>&1 | %FileCheck -check-prefix WASI-clang-linker-order %s
 
+// RUN: %swiftc_driver -sdk "" -driver-print-jobs -target wasm32-unknown-emscripten -Xemcc-linker -sENVIRONMENT=shell -Xlinker --export=foo %s 2>&1 | %FileCheck -check-prefix EMSCRIPTEN-emcc-linker %s
+
 // RUN: %swiftc_driver -sdk "" -driver-print-jobs -target x86_64-apple-macosx10.9 -g %s | %FileCheck -check-prefix DEBUG %s
 
 // RUN: %swiftc_driver_plain -driver-print-jobs -target x86_64-unknown-linux-gnu -toolchain-stdlib-rpath %s 2>&1 | %FileCheck -check-prefix LINUX-STDLIB-RPATH %s
@@ -393,6 +395,12 @@
 // WASI-clang-linker-order: clang{{"? }}
 // WASI-clang-linker-order: -flag arg
 // WASI-clang-linker-order: -o {{.*}}
+
+// EMSCRIPTEN-emcc-linker: emcc
+// EMSCRIPTEN-emcc-linker-NOT: -Xlinker{{.*}}-sENVIRONMENT
+// EMSCRIPTEN-emcc-linker: -sENVIRONMENT=shell
+// EMSCRIPTEN-emcc-linker: -Xlinker --export=foo
+// EMSCRIPTEN-emcc-linker: -o {{.*}}
 
 // DEBUG: bin{{/|\\\\}}swift{{c?(\.EXE)?}}
 // DEBUG-NEXT: bin{{/|\\\\}}swift{{c?(\.EXE)?}}

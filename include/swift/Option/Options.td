@@ -1576,6 +1576,10 @@ def Xcc : Separate<["-"], "Xcc">,
 def Xclang_linker : Separate<["-"], "Xclang-linker">, Flags<[HelpHidden]>,
   MetaVarName<"<arg>">, HelpText<"Pass <arg> to Clang when it is used for linking.">;
 
+def Xemcc_linker : Separate<["-"], "Xemcc-linker">, Flags<[HelpHidden]>,
+  MetaVarName<"<arg>">,
+  HelpText<"Pass <arg> to emcc when it is used for linking.">;
+
 def Xllvm : Separate<["-"], "Xllvm">,
   Flags<[FrontendOption, HelpHidden]>,
   MetaVarName<"<arg>">, HelpText<"Pass <arg> to LLVM.">;
