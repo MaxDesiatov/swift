@@ -397,10 +397,10 @@
 // WASI-clang-linker-order: -o {{.*}}
 
 // EMSCRIPTEN-emcc-linker: emcc
-// EMSCRIPTEN-emcc-linker-NOT: -Xlinker{{.*}}-sENVIRONMENT
 // EMSCRIPTEN-emcc-linker: -sENVIRONMENT=shell
 // EMSCRIPTEN-emcc-linker: -Xlinker --export=foo
 // EMSCRIPTEN-emcc-linker: -o {{.*}}
+// EMSCRIPTEN-emcc-linker-NOT: -Xlinker -sENVIRONMENT
 
 // DEBUG: bin{{/|\\\\}}swift{{c?(\.EXE)?}}
 // DEBUG-NEXT: bin{{/|\\\\}}swift{{c?(\.EXE)?}}
