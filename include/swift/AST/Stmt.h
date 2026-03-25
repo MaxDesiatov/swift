@@ -98,6 +98,11 @@ protected:
     NumCatches : 32
   );
 
+  SWIFT_INLINE_BITFIELD_FULL(DoHandleStmt, LabeledStmt, 32,
+    : NumPadBits,
+    NumHandleClauses : 32
+  );
+
   SWIFT_INLINE_BITFIELD_FULL(SwitchStmt, LabeledStmt, 32,
     : NumPadBits,
     CaseCount : 32
@@ -1609,6 +1614,65 @@ public:
 
   static bool classof(const Stmt *S) {
     return S->getKind() == StmtKind::DoCatch;
+  }
+};
+
+/// Represents a handle clause: `handle EffectType with HandlerExpr`
+struct HandleClauseInfo {
+  SourceLoc HandleLoc;     ///< Location of 'handle'
+  TypeLoc EffectType;      ///< The effect protocol type
+  SourceLoc WithLoc;       ///< Location of 'with'
+  Expr *HandlerExpr;       ///< The handler expression
+};
+
+/// DoHandleStmt - A `do` statement with `handle` clauses for context effects.
+///
+/// \code
+///   do {
+///     readFile(at: "test.txt")
+///   } handle FileSystem with MockFS()
+///     handle Network with MockNet()
+/// \endcode
+class DoHandleStmt final
+    : public LabeledStmt,
+      private llvm::TrailingObjects<DoHandleStmt, HandleClauseInfo> {
+  friend TrailingObjects;
+
+  SourceLoc DoLoc;
+  Stmt *Body;
+
+  DoHandleStmt(LabeledStmtInfo labelInfo, SourceLoc doLoc, Stmt *body,
+               ArrayRef<HandleClauseInfo> handleClauses,
+               std::optional<bool> implicit)
+      : LabeledStmt(StmtKind::DoHandle,
+                     getDefaultImplicitFlag(implicit, doLoc), labelInfo),
+        DoLoc(doLoc), Body(body) {
+    Bits.DoHandleStmt.NumHandleClauses = handleClauses.size();
+    std::uninitialized_copy(handleClauses.begin(), handleClauses.end(),
+                            getTrailingObjects());
+  }
+
+public:
+  static DoHandleStmt *create(ASTContext &ctx, LabeledStmtInfo labelInfo,
+                               SourceLoc doLoc, Stmt *body,
+                               ArrayRef<HandleClauseInfo> handleClauses,
+                               std::optional<bool> implicit = std::nullopt);
+
+  SourceLoc getDoLoc() const { return DoLoc; }
+
+  SourceLoc getStartLoc() const { return getLabelLocOrKeywordLoc(DoLoc); }
+  SourceLoc getEndLoc() const;
+
+  Stmt *getBody() const { return Body; }
+  void setBody(Stmt *s) { Body = s; }
+
+  ArrayRef<HandleClauseInfo> getHandleClauses() const {
+    auto numClauses = static_cast<size_t>(Bits.DoHandleStmt.NumHandleClauses);
+    return {getTrailingObjects(), numClauses};
+  }
+
+  static bool classof(const Stmt *S) {
+    return S->getKind() == StmtKind::DoHandle;
   }
 };
 

@@ -67,6 +67,8 @@ StringRef Stmt::getDescriptiveKindName(StmtKind K) {
     return "do";
   case StmtKind::DoCatch:
     return "do-catch";
+  case StmtKind::DoHandle:
+    return "do-handle";
   case StmtKind::RepeatWhile:
     return "repeat-while";
   case StmtKind::ForEach:
@@ -432,6 +434,7 @@ bool LabeledStmt::isPossibleContinueTarget() const {
 
   case StmtKind::Do:
   case StmtKind::DoCatch:
+  case StmtKind::DoHandle:
   case StmtKind::RepeatWhile:
   case StmtKind::ForEach:
   case StmtKind::While:
@@ -450,6 +453,7 @@ bool LabeledStmt::requiresLabelOnJump() const {
   case StmtKind::If:
   case StmtKind::Do:
   case StmtKind::DoCatch:
+  case StmtKind::DoHandle:
   case StmtKind::Guard: // Guard doesn't allow labels, so no break/continue.
     return true;
 
@@ -477,6 +481,27 @@ DoCatchStmt *DoCatchStmt::create(DeclContext *dc, LabeledStmtInfo labelInfo,
                            alignof(DoCatchStmt));
   return ::new (mem) DoCatchStmt(dc, labelInfo, doLoc, throwsLoc, thrownType,
                                  body, catches, implicit);
+}
+
+DoHandleStmt *DoHandleStmt::create(ASTContext &ctx,
+                                   LabeledStmtInfo labelInfo,
+                                   SourceLoc doLoc, Stmt *body,
+                                   ArrayRef<HandleClauseInfo> handleClauses,
+                                   std::optional<bool> implicit) {
+  void *mem = ctx.Allocate(
+      totalSizeToAlloc<HandleClauseInfo>(handleClauses.size()),
+      alignof(DoHandleStmt));
+  return ::new (mem)
+      DoHandleStmt(labelInfo, doLoc, body, handleClauses, implicit);
+}
+
+SourceLoc DoHandleStmt::getEndLoc() const {
+  auto clauses = getHandleClauses();
+  if (!clauses.empty()) {
+    if (auto *expr = clauses.back().HandlerExpr)
+      return expr->getEndLoc();
+  }
+  return Body->getEndLoc();
 }
 
 bool CaseLabelItem::isSyntacticallyExhaustive() const {

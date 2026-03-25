@@ -5305,6 +5305,11 @@ void PrintAST::visitTryExpr(TryExpr *expr) {
   visit(expr->getSubExpr());
 }
 
+void PrintAST::visitPerformExpr(PerformExpr *expr) {
+  Printer << "perform ";
+  visit(expr->getSubExpr());
+}
+
 void PrintAST::visitCallExpr(CallExpr *expr) {
   visit(expr->getFn());
   printArgumentList(expr->getArgs()->getOriginalArgs());
@@ -6168,6 +6173,19 @@ void PrintAST::visitDoCatchStmt(DoCatchStmt *stmt) {
   visit(stmt->getBody());
   for (auto clause : stmt->getCatches()) {
     visitCaseStmt(clause);
+  }
+}
+
+void PrintAST::visitDoHandleStmt(DoHandleStmt *stmt) {
+  Printer << tok::kw_do << " ";
+  visit(stmt->getBody());
+  for (auto &clause : stmt->getHandleClauses()) {
+    Printer << " handle ";
+    if (auto *typeRepr = clause.EffectType.getTypeRepr())
+      typeRepr->print(Printer, Options);
+    Printer << " with ";
+    if (clause.HandlerExpr)
+      visit(clause.HandlerExpr);
   }
 }
 

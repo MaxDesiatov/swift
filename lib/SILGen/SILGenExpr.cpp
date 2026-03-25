@@ -450,6 +450,12 @@ namespace {
       return visit(E, SGFContext());
     }
 
+    RValue visitPerformExpr(PerformExpr *E, SGFContext C) {
+      // TODO: Implement proper SILGen for perform expressions (effect handler lookup).
+      // For now, just emit the sub-expression (the closure).
+      return visit(E->getSubExpr(), C);
+    }
+
     // These always produce lvalues.
     RValue visitInOutExpr(InOutExpr *E, SGFContext C) {
       LValue lv = SGF.emitLValue(E->getSubExpr(), SGFAccessKind::ReadWrite);

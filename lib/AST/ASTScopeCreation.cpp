@@ -431,6 +431,14 @@ public:
   VISIT_AND_CREATE(RepeatWhileStmt, RepeatWhileScope)
   VISIT_AND_CREATE(DoStmt, DoStmtScope)
   VISIT_AND_CREATE(DoCatchStmt, DoCatchStmtScope)
+
+  // DoHandleStmt: for now, just walk the body and ignore handle clauses.
+  // TODO: Create a proper DoHandleStmtScope when effect handling is lowered.
+  ASTScopeImpl *visitDoHandleStmt(DoHandleStmt *w, ASTScopeImpl *p,
+                                  ScopeCreator &scopeCreator) {
+    return p;
+  }
+
   VISIT_AND_CREATE(SwitchStmt, SwitchStmtScope)
   VISIT_AND_CREATE(ForEachStmt, ForEachStmtScope)
   VISIT_AND_CREATE(CaseStmt, CaseStmtScope)

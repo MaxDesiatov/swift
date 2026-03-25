@@ -887,6 +887,16 @@ private:
     createConjunction(elements, locator);
   }
 
+  void visitDoHandleStmt(DoHandleStmt *doHandleStmt) {
+    // TODO: Implement proper constraint generation for do...handle blocks.
+    // For now, just visit the body.
+    SmallVector<ElementInfo, 4> elements;
+    auto *doBodyLoc = cs.getConstraintLocator(
+        locator, LocatorPathElt::SyntacticElement(doHandleStmt->getBody()));
+    elements.push_back(makeElement(doHandleStmt->getBody(), doBodyLoc));
+    createConjunction(elements, locator);
+  }
+
   void visitCaseStmt(CaseStmt *caseStmt) {
     Type contextualTy;
 
@@ -1849,6 +1859,14 @@ private:
       visitCaseStmt(catchStmt);
 
     return doStmt;
+  }
+
+  ASTNode visitDoHandleStmt(DoHandleStmt *doHandleStmt) {
+    // TODO: Implement proper solution application for do...handle blocks.
+    // For now, just visit the body.
+    auto newBody = visit(doHandleStmt->getBody());
+    doHandleStmt->setBody(cast<Stmt *>(newBody));
+    return doHandleStmt;
   }
 
   void visitCaseStmtPreamble(CaseStmt *caseStmt) {

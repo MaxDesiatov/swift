@@ -124,6 +124,7 @@ UNINTERESTING_FEATURE(MemberImportVisibility)
 // ----------------------------------------------------------------------------
 
 UNINTERESTING_FEATURE(StaticAssert)
+UNINTERESTING_FEATURE(ContextEffects)
 UNINTERESTING_FEATURE(NamedOpaqueTypes)
 UNINTERESTING_FEATURE(FlowSensitiveConcurrencyCaptures)
 UNINTERESTING_FEATURE(CodeItemMacros)

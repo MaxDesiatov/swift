@@ -1725,6 +1725,20 @@ ERROR(expected_rparen_after_thrown_error_type,none,
 ERROR(rethrows_with_thrown_error,none,
       "'rethrows' cannot be combined with a specific thrown error type", ())
 
+// Context effects (performs)
+ERROR(expected_effect_type,none,
+      "expected effect type in 'performs' clause", ())
+ERROR(expected_rparen_after_effect_type,none,
+      "expected ')' after effect type list", ())
+ERROR(performs_after_async_or_throws,none,
+      "'performs' must appear before '%0'", (StringRef))
+ERROR(expected_effect_type_after_handle,none,
+      "expected effect type after 'handle'", ())
+ERROR(expected_with_after_handle_type,none,
+      "expected 'with' after effect type in 'handle' clause", ())
+ERROR(expected_handler_expr,none,
+      "expected handler expression after 'with'", ())
+
 ERROR(attr_isolated_expected_lparen,none,
       "expected '(' after '@isolated'; did you mean the 'isolated' modifier?",
       ())

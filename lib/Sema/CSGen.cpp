@@ -1468,6 +1468,10 @@ namespace {
       return CS.getType(expr->getSubExpr());
     }
 
+    Type visitPerformExpr(PerformExpr *expr) {
+      return CS.getType(expr->getSubExpr());
+    }
+
     Type visitForceTryExpr(AnyTryExpr *expr) {
       auto valueTy = CS.createTypeVariable(CS.getConstraintLocator(expr),
                                            TVO_PrefersSubtypeBinding |

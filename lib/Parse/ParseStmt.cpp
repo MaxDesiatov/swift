@@ -2246,6 +2246,44 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
                           thrownType, body.get(), allClauses));
   }
 
+  // If the next token is 'handle' (context effects), this is a 'do'/'handle'.
+  if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
+      Tok.isContextualKeyword("handle")) {
+    SmallVector<HandleClauseInfo, 2> handleClauses;
+    do {
+      SourceLoc handleLoc = consumeToken(); // consume 'handle'
+
+      // Parse effect type.
+      ParserResult<TypeRepr> effectType =
+          parseType(diag::expected_effect_type_after_handle);
+      status |= effectType;
+
+      // Parse 'with'.
+      SourceLoc withLoc;
+      if (Tok.isContextualKeyword("with")) {
+        withLoc = consumeToken();
+      } else {
+        diagnose(Tok, diag::expected_with_after_handle_type);
+      }
+
+      // Parse handler expression.
+      ParserResult<Expr> handlerExpr =
+          parseExpr(diag::expected_handler_expr);
+      status |= handlerExpr;
+
+      HandleClauseInfo clause{handleLoc,
+                              TypeLoc(effectType.getPtrOrNull()),
+                              withLoc,
+                              handlerExpr.getPtrOrNull()};
+      handleClauses.push_back(clause);
+    } while (Tok.isContextualKeyword("handle"));
+
+    return makeParserResult(
+        status,
+        DoHandleStmt::create(Context, labelInfo, doLoc, body.get(),
+                             handleClauses));
+  }
+
   if (throwsLoc.isValid()) {
     diagnose(throwsLoc, diag::do_throws_without_catch);
   }

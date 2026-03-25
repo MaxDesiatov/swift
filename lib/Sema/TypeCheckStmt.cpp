@@ -1781,6 +1781,15 @@ public:
     return S;
   }
 
+  Stmt *visitDoHandleStmt(DoHandleStmt *S) {
+    // TODO: Implement proper type checking for do...handle blocks.
+    // For now, just type-check the body.
+    Stmt *newBody = S->getBody();
+    typeCheckStmt(newBody);
+    S->setBody(newBody);
+    return S;
+  }
+
   Stmt *visitFailStmt(FailStmt *S) {
     // These are created as part of type-checking "return" in an initializer.
     // There is nothing more to do.

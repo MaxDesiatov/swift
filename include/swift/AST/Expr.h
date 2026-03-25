@@ -2068,6 +2068,37 @@ public:
   }
 };
 
+/// PerformExpr - A 'perform' keyword expression for context effects.
+///
+/// \code
+///   perform { (handler: inout FileSystem) in handler.readFile(at: path) }
+/// \endcode
+///
+/// The sub-expression is a closure whose parameter type names the effect
+/// being performed.
+class PerformExpr : public Expr {
+  SourceLoc PerformLoc;
+  Expr *SubExpr;
+
+public:
+  PerformExpr(SourceLoc performLoc, Expr *sub, Type type = Type(),
+              bool implicit = false)
+      : Expr(ExprKind::Perform, implicit, type), PerformLoc(performLoc),
+        SubExpr(sub) {}
+
+  SourceLoc getPerformLoc() const { return PerformLoc; }
+
+  Expr *getSubExpr() const { return SubExpr; }
+  void setSubExpr(Expr *E) { SubExpr = E; }
+
+  SourceLoc getStartLoc() const { return PerformLoc; }
+  SourceLoc getEndLoc() const { return SubExpr->getEndLoc(); }
+
+  static bool classof(const Expr *e) {
+    return e->getKind() == ExprKind::Perform;
+  }
+};
+
 /// An expression node that does not affect the evaluation of its subexpression.
 class IdentityExpr : public Expr {
   Expr *SubExpr;

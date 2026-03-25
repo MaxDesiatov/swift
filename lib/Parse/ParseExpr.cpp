@@ -543,6 +543,17 @@ ParserResult<Expr> Parser::parseExprSequenceElement(Diag<> message,
     return makeParserResult(packRef);
   }
 
+  // 'perform' keyword for context effects.
+  if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
+      Tok.isContextualKeyword("perform")) {
+    SourceLoc performLoc = consumeToken();
+    ParserResult<Expr> sub = parseExprUnary(message, isExprBasic);
+    if (sub.hasCodeCompletion() || sub.isNull())
+      return sub;
+    return makeParserResult(
+        new (Context) PerformExpr(performLoc, sub.get()));
+  }
+
   SourceLoc tryLoc;
   bool hadTry = consumeIf(tok::kw_try, tryLoc);
   std::optional<Token> trySuffix;

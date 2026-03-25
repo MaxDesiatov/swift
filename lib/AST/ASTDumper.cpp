@@ -3471,6 +3471,22 @@ public:
     printRecRange(S->getCatches(), Ctx, Label::always("catch_stmts"));
     printFoot();
   }
+
+  void visitDoHandleStmt(DoHandleStmt *S, Label label) {
+    printCommon(S, "do_handle_stmt", label);
+    printRec(S->getBody(), Label::always("body"));
+    for (auto &clause : S->getHandleClauses()) {
+      printRecArbitrary([&](Label label) {
+        printHead("handle_clause", FieldLabelColor, label);
+        if (auto *typeRepr = clause.EffectType.getTypeRepr())
+          printRec(typeRepr, Label::always("effect_type"));
+        if (clause.HandlerExpr)
+          printRec(clause.HandlerExpr, Label::always("handler"));
+        printFoot();
+      }, Label::always("handle_clause"));
+    }
+    printFoot();
+  }
 };
 
 } // end anonymous namespace
@@ -4173,6 +4189,12 @@ public:
 
   void visitTryExpr(TryExpr *E, Label label) {
     printCommon(E, "try_expr", label);
+    printRec(E->getSubExpr(), Label::optional("sub_expr"));
+    printFoot();
+  }
+
+  void visitPerformExpr(PerformExpr *E, Label label) {
+    printCommon(E, "perform_expr", label);
     printRec(E->getSubExpr(), Label::optional("sub_expr"));
     printFoot();
   }

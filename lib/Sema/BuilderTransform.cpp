@@ -410,6 +410,13 @@ protected:
                             cast<BraceStmt>(body.get()), doStmt->isImplicit());
   }
 
+  NullablePtr<Stmt> visitDoHandleStmt(DoHandleStmt *doHandleStmt,
+                                      NullablePtr<VarDecl> doVar) {
+    // TODO: Implement result builder support for do...handle.
+    // For now, return as-is.
+    return doHandleStmt;
+  }
+
   NullablePtr<Stmt> visitIfStmt(IfStmt *ifStmt, NullablePtr<VarDecl> ifVar) {
     // Check whether the chain is buildable and whether it terminates
     // without an `else`.

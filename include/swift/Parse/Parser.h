@@ -1666,7 +1666,9 @@ public:
                                       SourceLoc &throws,
                                       bool &rethrows,
                                       TypeRepr *&thrownType,
-                                      TypeRepr *&retType);
+                                      TypeRepr *&retType,
+                                      SourceLoc *performsLoc = nullptr,
+                                      SmallVectorImpl<TypeRepr *> *performedEffects = nullptr);
 
   /// Parse 'async' and 'throws', if present, putting the locations of the
   /// keywords into the \c SourceLoc parameters.
@@ -1683,7 +1685,9 @@ public:
   ParserStatus parseEffectsSpecifiers(SourceLoc existingArrowLoc,
                                       SourceLoc &asyncLoc, bool *reasync,
                                       SourceLoc &throwsLoc, bool *rethrows,
-                                      TypeRepr *&thrownType);
+                                      TypeRepr *&thrownType,
+                                      SourceLoc *performsLoc = nullptr,
+                                      SmallVectorImpl<TypeRepr *> *performedEffects = nullptr);
 
   /// Returns 'true' if \p T is consider a throwing effect specifier.
   static bool isThrowsEffectSpecifier(const Token &T);

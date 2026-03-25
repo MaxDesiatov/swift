@@ -9258,11 +9258,14 @@ ParserResult<FuncDecl> Parser::parseDeclFunc(SourceLoc StaticLoc,
   SourceLoc throwsLoc;
   bool rethrows;
   TypeRepr *thrownTy = nullptr;
+  SourceLoc performsLoc;
+  SmallVector<TypeRepr *, 2> performedEffects;
   Status |= parseFunctionSignature(SimpleName, FullName, BodyParams,
                                    DefaultArgs,
                                    asyncLoc, reasync,
                                    throwsLoc, rethrows, thrownTy,
-                                   FuncRetTy);
+                                   FuncRetTy,
+                                   &performsLoc, &performedEffects);
   if (Status.hasCodeCompletion() && !CodeCompletionCallbacks) {
     // Trigger delayed parsing, no need to continue.
     return Status;
@@ -9291,6 +9294,15 @@ ParserResult<FuncDecl> Parser::parseDeclFunc(SourceLoc StaticLoc,
                               thrownTy, GenericParams,
                               BodyParams, FuncRetTy,
                               CurDeclContext);
+
+  // Set the performs clause if present.
+  if (performsLoc.isValid()) {
+    SmallVector<TypeLoc, 2> effectTypeLocs;
+    for (auto *repr : performedEffects)
+      effectTypeLocs.push_back(TypeLoc(repr));
+    FD->setPerforms(performsLoc,
+                    Context.AllocateCopy(effectTypeLocs));
+  }
 
   // Parse a 'where' clause if present.
   if (Tok.is(tok::kw_where)) {

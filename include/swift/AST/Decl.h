@@ -7915,6 +7915,12 @@ protected:
   /// The error type that is being thrown.
   TypeLoc ThrownType;
 
+  /// Location of the 'performs' token.
+  SourceLoc PerformsLoc;
+
+  /// The list of performed effect types.
+  ArrayRef<TypeLoc> PerformedEffects;
+
   struct {
     unsigned NeedsNewVTableEntryComputed : 1;
     unsigned NeedsNewVTableEntry : 1;
@@ -8056,6 +8062,21 @@ public:
 
   /// Returns if the function throws or is async.
   bool hasEffect(EffectKind kind) const;
+
+  /// Returns true if the function has a 'performs' clause for context effects.
+  bool hasPerforms() const { return PerformsLoc.isValid(); }
+
+  /// Retrieve the location of the 'performs' keyword, if present.
+  SourceLoc getPerformsLoc() const { return PerformsLoc; }
+
+  /// Retrieve the list of performed effect types.
+  ArrayRef<TypeLoc> getPerformedEffects() const { return PerformedEffects; }
+
+  /// Set the performs clause information.
+  void setPerforms(SourceLoc loc, ArrayRef<TypeLoc> effects) {
+    PerformsLoc = loc;
+    PerformedEffects = effects;
+  }
 
   /// Returns if the function is 'rethrows' or 'reasync'.
   bool hasPolymorphicEffect(EffectKind kind) const;

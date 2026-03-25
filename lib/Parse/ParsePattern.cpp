@@ -808,7 +808,9 @@ Parser::parseFunctionSignature(DeclBaseName SimpleName,
                                SourceLoc &throwsLoc,
                                bool &rethrows,
                                TypeRepr *&thrownType,
-                               TypeRepr *&retType) {
+                               TypeRepr *&retType,
+                               SourceLoc *performsLoc,
+                               SmallVectorImpl<TypeRepr *> *performedEffects) {
   SmallVector<Identifier, 4> NamePieces;
   ParserStatus Status;
 
@@ -821,13 +823,14 @@ Parser::parseFunctionSignature(DeclBaseName SimpleName,
                                    defaultArgs);
   FullName = DeclName(Context, SimpleName, NamePieces);
 
-  // Check for the 'async' and 'throws' keywords.
+  // Check for the 'performs', 'async' and 'throws' keywords.
   reasync = false;
   rethrows = false;
   thrownType = nullptr;
   Status |= parseEffectsSpecifiers(SourceLoc(),
                                    asyncLoc, &reasync,
-                                   throwsLoc, &rethrows, thrownType);
+                                   throwsLoc, &rethrows, thrownType,
+                                   performsLoc, performedEffects);
 
   // If there's a trailing arrow, parse the rest as the result type.
   SourceLoc arrowLoc;
@@ -842,7 +845,7 @@ Parser::parseFunctionSignature(DeclBaseName SimpleName,
     // Check for effect specifiers after the arrow, but before the return type,
     // and correct it.
     parseEffectsSpecifiers(arrowLoc, asyncLoc, &reasync, throwsLoc, &rethrows,
-                           thrownType);
+                           thrownType, performsLoc, performedEffects);
 
     ParserResult<TypeRepr> ResultType =
         parseDeclResultType(diag::expected_type_function_result);
@@ -853,7 +856,8 @@ Parser::parseFunctionSignature(DeclBaseName SimpleName,
 
     // Check for effect specifiers after the type and correct it.
     parseEffectsSpecifiers(
-        arrowLoc, asyncLoc, &reasync, throwsLoc, &rethrows, thrownType);
+        arrowLoc, asyncLoc, &reasync, throwsLoc, &rethrows, thrownType,
+        performsLoc, performedEffects);
   } else {
     // Otherwise, we leave retType null.
     retType = nullptr;
@@ -887,9 +891,57 @@ ParserStatus Parser::parseEffectsSpecifiers(SourceLoc existingArrowLoc,
                                             bool *reasync,
                                             SourceLoc &throwsLoc,
                                             bool *rethrows,
-                                            TypeRepr *&thrownType) {
+                                            TypeRepr *&thrownType,
+                                            SourceLoc *performsLoc,
+                                            SmallVectorImpl<TypeRepr *> *performedEffects) {
   ParserStatus status;
   while (true) {
+    // 'performs' (gated behind experimental feature)
+    if (performsLoc && performedEffects &&
+        Context.LangOpts.hasFeature(Feature::ContextEffects) &&
+        Tok.isContextualKeyword("performs")) {
+      if (performsLoc->isValid()) {
+        diagnose(Tok, diag::duplicate_effects_specifier, Tok.getText())
+            .highlight(*performsLoc)
+            .fixItRemove(Tok.getLoc());
+      } else if (existingArrowLoc.isValid()) {
+        diagnose(Tok, diag::async_or_throws_in_wrong_position, "performs")
+            .fixItRemove(Tok.getLoc())
+            .fixItInsert(existingArrowLoc, "performs(...) ");
+      } else if (asyncLoc.isValid()) {
+        diagnose(Tok, diag::performs_after_async_or_throws, "async")
+            .fixItRemove(Tok.getLoc())
+            .fixItInsert(asyncLoc, "performs(...) ");
+      } else if (throwsLoc.isValid()) {
+        diagnose(Tok, diag::performs_after_async_or_throws, "throws")
+            .fixItRemove(Tok.getLoc())
+            .fixItInsert(throwsLoc, "performs(...) ");
+      }
+      if (performsLoc->isInvalid()) {
+        Tok.setKind(tok::contextual_keyword);
+        *performsLoc = Tok.getLoc();
+      }
+      consumeToken();
+
+      // Parse the parenthesized type list: performs(Type1, Type2, ...)
+      SourceLoc lParenLoc;
+      if (consumeIf(tok::l_paren, lParenLoc)) {
+        do {
+          ParserResult<TypeRepr> ty =
+              parseType(diag::expected_effect_type);
+          if (ty.getPtrOrNull())
+            performedEffects->push_back(ty.get());
+          status |= ty;
+        } while (consumeIf(tok::comma));
+
+        SourceLoc rParenLoc;
+        parseMatchingToken(
+            tok::r_paren, rParenLoc,
+            diag::expected_rparen_after_effect_type, lParenLoc);
+      }
+      continue;
+    }
+
     // 'async'
     bool isReasync = (shouldParseExperimentalConcurrency() &&
                       Tok.isContextualKeyword("reasync"));

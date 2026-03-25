@@ -3757,6 +3757,10 @@ namespace {
       return transformExprWithSubExpr(expr);
     }
 
+    Expr *visitPerformExpr(PerformExpr *expr) {
+      return transformExprWithSubExpr(expr);
+    }
+
     Expr *visitOptionalTryExpr(OptionalTryExpr *expr) {
       // Prior to Swift 5, 'try?' simply wraps the type of its sub-expression
       // in an Optional, regardless of the sub-expression type.

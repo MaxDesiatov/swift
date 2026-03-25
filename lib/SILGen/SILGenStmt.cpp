@@ -1354,6 +1354,12 @@ void StmtEmitter::visitDoStmt(DoStmt *S) {
   }
 }
 
+void StmtEmitter::visitDoHandleStmt(DoHandleStmt *S) {
+  // TODO: Implement proper SILGen for do...handle blocks (effect handler setup).
+  // For now, just emit the body.
+  visit(S->getBody());
+}
+
 void StmtEmitter::visitDoCatchStmt(DoCatchStmt *S) {
   Type formalExnType = S->getCaughtErrorType();
   auto &exnTL = SGF.getTypeLowering(formalExnType);
