@@ -115,6 +115,8 @@ REPRESSIBLE_PROTOCOL(Sendable)
 PROTOCOL(SendableMetatype)
 PROTOCOL(UnsafeSendable)
 
+PROTOCOL(Effect)
+
 PROTOCOL_(ObjectiveCBridgeable)
 PROTOCOL_(DestructorSafeContainer)
 
