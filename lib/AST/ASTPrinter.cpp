@@ -6181,11 +6181,11 @@ void PrintAST::visitDoHandleStmt(DoHandleStmt *stmt) {
   visit(stmt->getBody());
   for (auto &clause : stmt->getHandleClauses()) {
     Printer << " handle ";
-    if (auto *typeRepr = clause.EffectType.getTypeRepr())
-      typeRepr->print(Printer, Options);
-    Printer << " with ";
     if (clause.HandlerExpr)
       visit(clause.HandlerExpr);
+    Printer << " " << tok::kw_as << " ";
+    if (auto *typeRepr = clause.EffectType.getTypeRepr())
+      typeRepr->print(Printer, Options);
   }
 }
 

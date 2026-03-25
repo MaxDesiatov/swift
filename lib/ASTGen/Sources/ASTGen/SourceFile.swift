@@ -94,6 +94,7 @@ extension Parser.ExperimentalFeatures {
     mapFeature(.DefaultIsolationPerFile, to: .defaultIsolationPerFile)
     mapFeature(.BorrowAndMutateAccessors, to: .borrowAndMutateAccessors)
     mapFeature(.LiteralExpressions, to: .literalExpressions)
+    mapFeature(.ContextEffects, to: .contextEffects)
   }
 }
 

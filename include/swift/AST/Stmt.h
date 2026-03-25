@@ -1617,11 +1617,11 @@ public:
   }
 };
 
-/// Represents a handle clause: `handle EffectType with HandlerExpr`
+/// Represents a handle clause: `handle HandlerExpr as EffectType`
 struct HandleClauseInfo {
   SourceLoc HandleLoc;     ///< Location of 'handle'
   TypeLoc EffectType;      ///< The effect protocol type
-  SourceLoc WithLoc;       ///< Location of 'with'
+  SourceLoc AsLoc;         ///< Location of 'as'
   Expr *HandlerExpr;       ///< The handler expression
 };
 
@@ -1630,8 +1630,8 @@ struct HandleClauseInfo {
 /// \code
 ///   do {
 ///     readFile(at: "test.txt")
-///   } handle FileSystem with MockFS()
-///     handle Network with MockNet()
+///   } handle MockFS() as FileSystem
+///     handle MockNet() as Network
 /// \endcode
 class DoHandleStmt final
     : public LabeledStmt,

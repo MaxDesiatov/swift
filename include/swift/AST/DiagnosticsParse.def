@@ -1733,11 +1733,11 @@ ERROR(expected_rparen_after_effect_type,none,
 ERROR(performs_after_async_or_throws,none,
       "'performs' must appear before '%0'", (StringRef))
 ERROR(expected_effect_type_after_handle,none,
-      "expected effect type after 'handle'", ())
-ERROR(expected_with_after_handle_type,none,
-      "expected 'with' after effect type in 'handle' clause", ())
+      "expected effect type after 'as' in 'handle' clause", ())
+ERROR(expected_as_after_handle_expr,none,
+      "expected 'as' after handler expression in 'handle' clause", ())
 ERROR(expected_handler_expr,none,
-      "expected handler expression after 'with'", ())
+      "expected handler expression after 'handle'", ())
 
 ERROR(attr_isolated_expected_lparen,none,
       "expected '(' after '@isolated'; did you mean the 'isolated' modifier?",
