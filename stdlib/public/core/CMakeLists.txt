@@ -82,6 +82,7 @@ split_embedded_sources(
     NORMAL Dump.swift
   EMBEDDED Duration.swift
   EMBEDDED DurationProtocol.swift
+  EMBEDDED Effect.swift
   EMBEDDED EmptyCollection.swift
   EMBEDDED EnumeratedSequence.swift
   EMBEDDED Equatable.swift
