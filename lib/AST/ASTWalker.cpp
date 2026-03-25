@@ -929,6 +929,14 @@ class Traversal : public ASTVisitor<Traversal, Expr*, Stmt*,
     return nullptr;
   }
 
+  Expr *visitPerformExpr(PerformExpr *E) {
+    if (Expr *E2 = doIt(E->getSubExpr())) {
+      E->setSubExpr(E2);
+      return E;
+    }
+    return nullptr;
+  }
+
   Expr *visitForceTryExpr(ForceTryExpr *E) {
     if (Expr *E2 = doIt(E->getSubExpr())) {
       E->setSubExpr(E2);
@@ -2031,6 +2039,27 @@ Stmt *Traversal::visitDoCatchStmt(DoCatchStmt *stmt) {
       clause = cast<CaseStmt>(newClause);
     } else {
       return nullptr;
+    }
+  }
+
+  return stmt;
+}
+
+Stmt *Traversal::visitDoHandleStmt(DoHandleStmt *stmt) {
+  // Transform the body of the 'do'.
+  if (Stmt *newBody = doIt(stmt->getBody())) {
+    stmt->setBody(newBody);
+  } else {
+    return nullptr;
+  }
+
+  // Walk the handler expressions in each handle clause.
+  // Note: HandleClauseInfo is stored in trailing objects, so we can't mutate
+  // them easily. For now, just walk them for side effects.
+  for (auto &clause : stmt->getHandleClauses()) {
+    if (clause.HandlerExpr) {
+      if (!doIt(clause.HandlerExpr))
+        return nullptr;
     }
   }
 

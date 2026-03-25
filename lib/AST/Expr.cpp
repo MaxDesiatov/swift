@@ -366,6 +366,7 @@ ConcreteDeclRef Expr::getReferencedDecl(bool stopAtParenExpr) const {
   PASS_THROUGH_REFERENCE(Try, getSubExpr);
   PASS_THROUGH_REFERENCE(ForceTry, getSubExpr);
   PASS_THROUGH_REFERENCE(OptionalTry, getSubExpr);
+  PASS_THROUGH_REFERENCE(Perform, getSubExpr);
   PASS_THROUGH_REFERENCE(ExtractFunctionIsolation, getFunctionExpr);
 
   NO_REFERENCE(Tuple);
@@ -744,6 +745,7 @@ bool Expr::canAppendPostfixExpression(bool appendingPostfixOperator) const {
   case ExprKind::Try:
   case ExprKind::ForceTry:
   case ExprKind::OptionalTry:
+  case ExprKind::Perform:
   case ExprKind::InOut:
     return false;
 
@@ -963,6 +965,7 @@ bool Expr::isValidParentOfTypeExpr(Expr *typeExpr) const {
   case ExprKind::Try:
   case ExprKind::ForceTry:
   case ExprKind::OptionalTry:
+  case ExprKind::Perform:
   case ExprKind::Tuple:
   case ExprKind::Array:
   case ExprKind::Dictionary:
