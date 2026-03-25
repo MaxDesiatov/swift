@@ -39,6 +39,8 @@ extension ASTGenVisitor {
       return self.generate(discardStmt: node).asStmt
     case .doStmt(let node):
       return self.generate(doStmt: node)
+    case .doHandleStmt:
+      fatalError("unimplemented (do...handle statement)")
     case .expressionStmt(let node):
       return self.generate(expressionStmt: node)
     case .fallThroughStmt(let node):

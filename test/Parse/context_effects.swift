@@ -1,4 +1,4 @@
-// RUN: %target-swift-frontend -dump-parse %s -enable-experimental-feature ContextEffects -disable-experimental-parser-round-trip 2>&1 | %FileCheck %s
+// RUN: %target-swift-frontend -dump-parse %s -enable-experimental-feature ContextEffects 2>&1 | %FileCheck %s
 
 // REQUIRES: swift_feature_ContextEffects
 
@@ -27,4 +27,5 @@ func pureAdd(_ a: Int, _ b: Int) performs(Never) -> Int { a + b }
 // CHECK: handle_clause
 do {
     let _ = readFile(at: "test.txt")
-} handle FileSystem with MockFS()
+} handle MockFS() as FileSystem
+

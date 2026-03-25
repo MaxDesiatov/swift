@@ -87,6 +87,8 @@ extension ASTGenVisitor {
       return self.generate(packExpansionExpr: node).asExpr
     case .patternExpr(let node):
       return self.generate(patternExpr: node).asExpr
+    case .performExpr:
+      fatalError("unimplemented (perform expression)")
     case .postfixIfConfigExpr(let node):
       return self.generate(postfixIfConfigExpr: node)
     case .postfixOperatorExpr(let node):

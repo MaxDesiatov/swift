@@ -1,4 +1,4 @@
-// RUN: %target-swift-frontend -dump-parse %s -enable-experimental-feature ContextEffects -disable-experimental-parser-round-trip 2>&1 | %FileCheck %s
+// RUN: %target-swift-frontend -dump-parse %s -enable-experimental-feature ContextEffects 2>&1 | %FileCheck %s
 
 // REQUIRES: swift_feature_ContextEffects
 
@@ -18,22 +18,22 @@ struct MockNet: Network {}
 // CHECK: handle_clause
 do {
     let _ = 1
-} handle FileSystem with MockFS()
+} handle MockFS() as FileSystem
 
-// Multiple handle clauses
+// Multiple handle clauses (comma separated)
 // CHECK: do_handle_stmt
 // CHECK: handle_clause
 // CHECK: handle_clause
 do {
     let _ = 1
-} handle FileSystem with MockFS()
-  handle Network with MockNet()
+} handle MockFS() as FileSystem,
+         MockNet() as Network
 
 // Nested: do/handle inside do/catch
 do {
     do {
         let _ = 1
-    } handle FileSystem with MockFS()
+    } handle MockFS() as FileSystem
 } catch {
     let _ = error
 }

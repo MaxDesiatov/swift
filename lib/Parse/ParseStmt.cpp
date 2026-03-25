@@ -2250,33 +2250,35 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
   if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
       Tok.isContextualKeyword("handle")) {
     SmallVector<HandleClauseInfo, 2> handleClauses;
+    consumeToken(); // consume first 'handle'
     do {
-      SourceLoc handleLoc = consumeToken(); // consume 'handle'
+      SourceLoc handleLoc = PreviousLoc;
+
+      // Parse handler expression: handle <expr> as <EffectType>
+      // Use parseExprUnary to stop before 'as' (which is a sequence operator).
+      ParserResult<Expr> handlerExpr =
+          parseExprUnary(diag::expected_handler_expr, /*isExprBasic=*/false);
+      status |= handlerExpr;
+
+      // Parse 'as'.
+      SourceLoc asLoc;
+      if (Tok.is(tok::kw_as)) {
+        asLoc = consumeToken();
+      } else {
+        diagnose(Tok, diag::expected_as_after_handle_expr);
+      }
 
       // Parse effect type.
       ParserResult<TypeRepr> effectType =
           parseType(diag::expected_effect_type_after_handle);
       status |= effectType;
 
-      // Parse 'with'.
-      SourceLoc withLoc;
-      if (Tok.isContextualKeyword("with")) {
-        withLoc = consumeToken();
-      } else {
-        diagnose(Tok, diag::expected_with_after_handle_type);
-      }
-
-      // Parse handler expression.
-      ParserResult<Expr> handlerExpr =
-          parseExpr(diag::expected_handler_expr);
-      status |= handlerExpr;
-
       HandleClauseInfo clause{handleLoc,
                               TypeLoc(effectType.getPtrOrNull()),
-                              withLoc,
+                              asLoc,
                               handlerExpr.getPtrOrNull()};
       handleClauses.push_back(clause);
-    } while (Tok.isContextualKeyword("handle"));
+    } while (consumeIf(tok::comma));
 
     return makeParserResult(
         status,
