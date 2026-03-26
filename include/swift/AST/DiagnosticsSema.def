@@ -5709,7 +5709,7 @@ ERROR(typed_throw_in_objc_forbidden,none,
 //------------------------------------------------------------------------------
 ERROR(context_effect_not_allowed,none,
       "call to function that performs %0 is not allowed; "
-      "enclosing function only performs %1", (Type, StringRef))
+      "enclosing function only performs %1", (StringRef, StringRef))
 
 ERROR(context_effect_in_performs_never,none,
       "call to function that performs effects is not allowed in a "
@@ -5717,6 +5717,12 @@ ERROR(context_effect_in_performs_never,none,
 
 ERROR(context_effect_type_not_effect_protocol,none,
       "type %0 in 'performs' clause does not conform to 'Effect'", (Type))
+
+ERROR(context_effect_missing_effect_protocol,none,
+      "'performs' clause requires the 'Effect' protocol from the standard library", ())
+
+ERROR(context_effect_never_with_other_types,none,
+      "'Never' cannot be combined with other types in a 'performs' clause", ())
 
 NOTE(callee_declared_performs_here,none,
       "%0 declared here", (DeclName))
