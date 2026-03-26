@@ -87,8 +87,8 @@ extension ASTGenVisitor {
       return self.generate(packExpansionExpr: node).asExpr
     case .patternExpr(let node):
       return self.generate(patternExpr: node).asExpr
-    case .performExpr:
-      fatalError("unimplemented (perform expression)")
+    case .performExpr(let node):
+      return self.generate(performExpr: node).asExpr
     case .postfixIfConfigExpr(let node):
       return self.generate(postfixIfConfigExpr: node)
     case .postfixOperatorExpr(let node):
@@ -210,6 +210,14 @@ extension ASTGenVisitor {
       self.ctx,
       awaitLoc: self.generateSourceLoc(node.awaitKeyword),
       subExpr: self.generate(expr: node.expression)
+    )
+  }
+
+  func generate(performExpr node: PerformExprSyntax) -> BridgedPerformExpr {
+    return .createParsed(
+      self.ctx,
+      performLoc: self.generateSourceLoc(node.performKeyword),
+      subExpr: self.generate(expr: node.body)
     )
   }
 

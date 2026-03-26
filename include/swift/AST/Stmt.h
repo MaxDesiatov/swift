@@ -1671,6 +1671,11 @@ public:
     return {getTrailingObjects(), numClauses};
   }
 
+  MutableArrayRef<HandleClauseInfo> getMutableHandleClauses() {
+    auto numClauses = static_cast<size_t>(Bits.DoHandleStmt.NumHandleClauses);
+    return {getTrailingObjects(), numClauses};
+  }
+
   static bool classof(const Stmt *S) {
     return S->getKind() == StmtKind::DoHandle;
   }

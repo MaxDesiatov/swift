@@ -39,8 +39,8 @@ extension ASTGenVisitor {
       return self.generate(discardStmt: node).asStmt
     case .doStmt(let node):
       return self.generate(doStmt: node)
-    case .doHandleStmt:
-      fatalError("unimplemented (do...handle statement)")
+    case .doHandleStmt(let node):
+      return self.generate(doHandleStmt: node)
     case .expressionStmt(let node):
       return self.generate(expressionStmt: node)
     case .fallThroughStmt(let node):
@@ -353,6 +353,25 @@ extension ASTGenVisitor {
     return self.generate(doStmtOrExpr: node, labelInfo: labelInfo)
   }
 
+  func generate(doHandleStmt node: DoHandleStmtSyntax, labelInfo: BridgedLabeledStmtInfo = nil) -> BridgedStmt {
+    var handleClauses: [BridgedHandleClauseInfo] = []
+    for clause in node.handleClauses {
+      handleClauses.append(BridgedHandleClauseInfo(
+        handleLoc: self.generateSourceLoc(node.handleKeyword),
+        handlerExpr: self.generate(expr: clause.handler),
+        asLoc: self.generateSourceLoc(clause.asKeyword),
+        effectType: self.generate(type: clause.effectType)
+      ))
+    }
+    return BridgedDoHandleStmt.createParsed(
+      self.ctx,
+      labelInfo: labelInfo,
+      doLoc: self.generateSourceLoc(node.doKeyword),
+      body: self.generate(codeBlock: node.body),
+      handleClauses: handleClauses.lazy.bridgedArray(in: self)
+    ).asStmt
+  }
+
   func generate(
     doStmtOrExpr node: some DoStmtOrExprSyntax,
     labelInfo: BridgedLabeledStmtInfo = nil
@@ -453,6 +472,8 @@ extension ASTGenVisitor {
     switch node.statement.as(StmtSyntaxEnum.self) {
     case .doStmt(let node):
       return self.generate(doStmt: node, labelInfo: labelInfo)
+    case .doHandleStmt(let node):
+      return self.generate(doHandleStmt: node, labelInfo: labelInfo)
     case .expressionStmt(let node):
       switch node.expression.as(ExprSyntaxEnum.self) {
       case .ifExpr(let node):

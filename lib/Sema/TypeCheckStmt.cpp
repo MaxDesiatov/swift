@@ -1782,11 +1782,72 @@ public:
   }
 
   Stmt *visitDoHandleStmt(DoHandleStmt *S) {
-    // TODO: Implement proper type checking for do...handle blocks.
-    // For now, just type-check the body.
+    auto sourceFile = DC->getParentSourceFile();
+    checkLabeledStmtShadowing(getASTContext(), sourceFile, S);
+
+    // Look up the Effect protocol.
+    auto *effectProto = Ctx.getProtocol(KnownProtocolKind::Effect);
+
+    // Type-check each handle clause.
+    for (auto &clause : S->getMutableHandleClauses()) {
+      // Resolve the effect type.
+      auto *typeRepr = clause.EffectType.getTypeRepr();
+      if (typeRepr) {
+        auto options = TypeResolutionOptions(TypeResolverContext::None);
+        auto resolvedType =
+            TypeResolution::forInterface(DC, options,
+                                        /*unboundTyOpener*/ nullptr,
+                                        /*placeholderOpener*/ nullptr,
+                                        /*packElementOpener*/ nullptr)
+                .resolveType(typeRepr);
+        clause.EffectType.setType(resolvedType);
+
+        if (!resolvedType->hasError()) {
+          // Check that the effect type conforms to Effect.
+          ProtocolDecl *protoDecl = nullptr;
+          if (auto *protoType = resolvedType->getAs<ProtocolType>())
+            protoDecl = protoType->getDecl();
+          else if (auto *existType = resolvedType->getAs<ExistentialType>())
+            if (auto *protoType2 =
+                    existType->getConstraintType()->getAs<ProtocolType>())
+              protoDecl = protoType2->getDecl();
+
+          bool isEffectProtocol = false;
+          if (effectProto && protoDecl) {
+            isEffectProtocol = (protoDecl == effectProto ||
+                                protoDecl->inheritsFrom(effectProto));
+          }
+
+          if (!isEffectProtocol) {
+            Ctx.Diags.diagnose(typeRepr->getLoc(),
+                               diag::context_effect_handle_type_not_effect,
+                               resolvedType);
+          } else {
+            // Type-check the handler expression.
+            Expr *handlerExpr = clause.HandlerExpr;
+            auto handlerTy =
+                TypeChecker::typeCheckExpression(handlerExpr, DC);
+            clause.HandlerExpr = handlerExpr;
+
+            if (handlerTy) {
+              // Check that the handler conforms to the effect protocol.
+              if (!checkConformance(handlerTy, protoDecl)) {
+                Ctx.Diags.diagnose(
+                    handlerExpr->getLoc(),
+                    diag::context_effect_handler_does_not_conform,
+                    handlerTy, protoDecl->getName());
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Type-check the body.
     Stmt *newBody = S->getBody();
     typeCheckStmt(newBody);
     S->setBody(newBody);
+
     return S;
   }
 

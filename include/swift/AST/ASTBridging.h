@@ -1858,6 +1858,12 @@ BridgedAwaitExpr BridgedAwaitExpr_createParsed(BridgedASTContext cContext,
                                                swift::SourceLoc awaitLoc,
                                                BridgedExpr cSubExpr);
 
+SWIFT_NAME("BridgedPerformExpr.createParsed(_:performLoc:subExpr:)")
+BridgedPerformExpr BridgedPerformExpr_createParsed(
+    BridgedASTContext cContext,
+    swift::SourceLoc performLoc,
+    BridgedExpr cSubExpr);
+
 SWIFT_NAME("BridgedBindOptionalExpr.createParsed(_:subExpr:questionLoc:)")
 BridgedBindOptionalExpr
 BridgedBindOptionalExpr_createParsed(BridgedASTContext cContext,
@@ -2458,6 +2464,26 @@ BridgedDoCatchStmt BridgedDoCatchStmt_createParsed(
     swift::SourceLoc doLoc, swift::SourceLoc throwsLoc,
     BridgedNullableTypeRepr cThrownType, BridgedStmt cBody,
     BridgedArrayRef cCatches);
+
+struct BridgedHandleClauseInfo {
+  SWIFT_NAME("handleLoc")
+  swift::SourceLoc HandleLoc;
+  SWIFT_NAME("handlerExpr")
+  BridgedExpr HandlerExpr;
+  SWIFT_NAME("asLoc")
+  swift::SourceLoc AsLoc;
+  SWIFT_NAME("effectType")
+  BridgedTypeRepr EffectType;
+};
+
+SWIFT_NAME("BridgedDoHandleStmt.createParsed(_:labelInfo:doLoc:body:"
+           "handleClauses:)")
+BridgedDoHandleStmt BridgedDoHandleStmt_createParsed(
+    BridgedASTContext cContext,
+    BridgedLabeledStmtInfo cLabelInfo,
+    swift::SourceLoc doLoc,
+    BridgedBraceStmt cBody,
+    BridgedArrayRef cHandleClauses);
 
 SWIFT_NAME("BridgedFallthroughStmt.createParsed(loc:declContext:)")
 BridgedFallthroughStmt

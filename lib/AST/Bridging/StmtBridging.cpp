@@ -190,6 +190,23 @@ BridgedDoCatchStmt BridgedDoCatchStmt_createParsed(
                              cCatches.unbridged<CaseStmt *>());
 }
 
+BridgedDoHandleStmt BridgedDoHandleStmt_createParsed(
+    BridgedASTContext cContext, BridgedLabeledStmtInfo cLabelInfo,
+    SourceLoc doLoc, BridgedBraceStmt cBody,
+    BridgedArrayRef cHandleClauses) {
+  auto &ctx = cContext.unbridged();
+  auto bridgedClauses = cHandleClauses.unbridged<BridgedHandleClauseInfo>();
+  SmallVector<HandleClauseInfo, 4> clauses;
+  for (auto &bc : bridgedClauses) {
+    clauses.push_back({bc.HandleLoc,
+                       TypeLoc(bc.EffectType.unbridged()),
+                       bc.AsLoc,
+                       bc.HandlerExpr.unbridged()});
+  }
+  return DoHandleStmt::create(ctx, cLabelInfo.unbridged(), doLoc,
+                              cBody.unbridged(), ctx.AllocateCopy(clauses));
+}
+
 BridgedFallthroughStmt
 BridgedFallthroughStmt_createParsed(SourceLoc loc, BridgedDeclContext cDC) {
   return FallthroughStmt::createParsed(loc, cDC.unbridged());

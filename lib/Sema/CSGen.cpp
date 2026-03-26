@@ -1469,7 +1469,28 @@ namespace {
     }
 
     Type visitPerformExpr(PerformExpr *expr) {
-      return CS.getType(expr->getSubExpr());
+      // The perform expression calls its closure sub-expression.
+      // The result type of the perform expression is the return type of
+      // the closure. Create a type variable for the result and constrain
+      // the sub-expression to be a function returning that type.
+      auto subExprType = CS.getType(expr->getSubExpr());
+
+      auto resultTy = CS.createTypeVariable(
+          CS.getConstraintLocator(expr),
+          TVO_PrefersSubtypeBinding | TVO_CanBindToNoEscape);
+
+      // The sub-expression should be a function type (closure) whose result
+      // is the perform expression's type.
+      auto argTy = CS.createTypeVariable(
+          CS.getConstraintLocator(expr, ConstraintLocator::FunctionArgument),
+          TVO_CanBindToInOut | TVO_CanBindToNoEscape);
+      auto extInfo = AnyFunctionType::ExtInfo();
+      auto fnTy = FunctionType::get(
+          {AnyFunctionType::Param(argTy)}, resultTy, extInfo);
+      CS.addConstraint(ConstraintKind::Conversion, subExprType, fnTy,
+                       CS.getConstraintLocator(expr));
+
+      return resultTy;
     }
 
     Type visitForceTryExpr(AnyTryExpr *expr) {

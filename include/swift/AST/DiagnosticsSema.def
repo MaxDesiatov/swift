@@ -5727,6 +5727,17 @@ ERROR(context_effect_never_with_other_types,none,
 NOTE(callee_declared_performs_here,none,
       "%0 declared here", (DeclName))
 
+ERROR(context_effect_handle_type_not_effect,none,
+      "type %0 in handle clause does not conform to 'Effect'", (Type))
+
+ERROR(context_effect_handler_does_not_conform,none,
+      "handler of type %0 does not conform to %1", (Type, Identifier))
+
+ERROR(context_effect_perform_not_available,none,
+      "effect %0 is not available; "
+      "add it to the enclosing function's 'performs' clause or "
+      "provide a handler with 'do...handle'", (Identifier))
+
 //------------------------------------------------------------------------------
 // MARK: Concurrency
 //------------------------------------------------------------------------------

@@ -3758,7 +3758,11 @@ namespace {
     }
 
     Expr *visitPerformExpr(PerformExpr *expr) {
-      return transformExprWithSubExpr(expr);
+      // The PerformExpr's type is the closure's return type (not the closure
+      // type itself), so we just simplify the type and leave the sub-expression
+      // as-is — don't try to coerce the closure to the result type.
+      simplifyExprType(expr);
+      return expr;
     }
 
     Expr *visitOptionalTryExpr(OptionalTryExpr *expr) {

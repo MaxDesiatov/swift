@@ -1624,6 +1624,27 @@ public:
   }
 };
 
+class DoHandleStmtScope final : public AbstractStmtScope {
+public:
+  DoHandleStmt *const stmt;
+  DoHandleStmtScope(DoHandleStmt *e)
+      : AbstractStmtScope(ScopeKind::DoHandleStmt), stmt(e) {}
+  virtual ~DoHandleStmtScope() {}
+
+protected:
+  ASTScopeImpl *expandSpecifically(ScopeCreator &scopeCreator) override;
+
+private:
+  void expandAScopeThatDoesNotCreateANewInsertionPoint(ScopeCreator &);
+
+public:
+  Stmt *getStmt() const override { return stmt; }
+
+  static bool classof(const ASTScopeImpl *scope) {
+    return scope->getKind() == ScopeKind::DoHandleStmt;
+  }
+};
+
 class SwitchStmtScope final : public AbstractStmtScope {
 public:
   SwitchStmt *const stmt;

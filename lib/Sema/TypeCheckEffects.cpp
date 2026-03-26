@@ -629,6 +629,8 @@ public:
       recurse = asImpl().checkAutoClosure(autoclosure);
     } else if (auto awaitExpr = dyn_cast<AwaitExpr>(E)) {
       recurse = asImpl().checkAwait(awaitExpr);
+    } else if (auto performExpr = dyn_cast<PerformExpr>(E)) {
+      recurse = asImpl().checkPerform(performExpr);
     } else if (auto unsafeExpr = dyn_cast<UnsafeExpr>(E)) {
       recurse = asImpl().checkUnsafe(unsafeExpr);
     } else if (auto tryExpr = dyn_cast<TryExpr>(E)) {
@@ -742,6 +744,8 @@ public:
       asImpl().noteLabeledConditionalStmt(labeled);
     } else if (auto defer = dyn_cast<DeferStmt>(S)) {
       recurse = asImpl().checkDefer(defer);
+    } else if (auto doHandle = dyn_cast<DoHandleStmt>(S)) {
+      recurse = asImpl().checkDoHandle(doHandle);
     }
 
     if (!recurse)
@@ -759,6 +763,9 @@ public:
     }
     return ShouldNotRecurse;
   }
+
+  ShouldRecurse_t checkDoHandle(DoHandleStmt *S) { return ShouldRecurse; }
+  ShouldRecurse_t checkPerform(PerformExpr *E) { return ShouldRecurse; }
 
   ShouldRecurse_t checkForEach(ForEachStmt *S) {
     return ShouldRecurse;
@@ -5099,7 +5106,8 @@ static std::string formatEffectSet(ArrayRef<ProtocolDecl *> effects) {
 }
 
 /// A walker that checks context effects coverage: verifies that callees'
-/// effect sets are subsets of the caller's effect set.
+/// effect sets are subsets of the caller's effect set, and that perform
+/// expressions reference available effects.
 class CheckContextEffectsCoverage
     : public EffectsHandlingWalker<CheckContextEffectsCoverage> {
   friend class EffectsHandlingWalker<CheckContextEffectsCoverage>;
@@ -5110,6 +5118,9 @@ class CheckContextEffectsCoverage
   llvm::DenseMap<AbstractFunctionDecl *,
                  std::optional<SmallVector<ProtocolDecl *, 4>>> ResolvedCache;
 
+  /// Stack of narrowing scopes introduced by do...handle blocks.
+  SmallVector<llvm::SmallPtrSet<ProtocolDecl *, 4>, 2> NarrowingScope;
+
   const std::optional<SmallVector<ProtocolDecl *, 4>> &
   getOrResolveEffects(AbstractFunctionDecl *fn) {
     auto it = ResolvedCache.find(fn);
@@ -5117,6 +5128,27 @@ class CheckContextEffectsCoverage
       return it->second;
     return ResolvedCache.insert({fn, resolvePerformedEffects(fn, Ctx)})
         .first->second;
+  }
+
+  /// Check if an effect is available via CallerEffectSet or any NarrowingScope.
+  bool isEffectAvailable(ProtocolDecl *proto) const {
+    if (CallerEffectSet.count(proto))
+      return true;
+    for (auto &scope : NarrowingScope)
+      if (scope.count(proto))
+        return true;
+    return false;
+  }
+
+  static ProtocolDecl *extractProtocolDecl(Type type) {
+    if (!type || type->hasError())
+      return nullptr;
+    if (auto *pt = type->getAs<ProtocolType>())
+      return pt->getDecl();
+    if (auto *et = type->getAs<ExistentialType>())
+      if (auto *pt2 = et->getConstraintType()->getAs<ProtocolType>())
+        return pt2->getDecl();
+    return nullptr;
   }
 
 public:
@@ -5185,6 +5217,51 @@ public:
   // ShouldRecurse means walkToStmtPre continues into children normally.
   ShouldRecurse_t checkDoCatch(DoCatchStmt *) { return ShouldRecurse; }
 
+  ShouldRecurse_t checkDoHandle(DoHandleStmt *S) {
+    // Push a new narrowing scope with the handled effects.
+    NarrowingScope.push_back({});
+    for (auto &clause : S->getHandleClauses()) {
+      auto type = clause.EffectType.getType();
+      if (auto *proto = extractProtocolDecl(type))
+        NarrowingScope.back().insert(proto);
+    }
+
+    // Walk the body manually so that narrowing is in effect.
+    S->getBody()->walk(*this);
+
+    NarrowingScope.pop_back();
+    return ShouldNotRecurse;
+  }
+
+  ShouldRecurse_t checkPerform(PerformExpr *E) {
+    // Extract the effect protocol from the closure parameter type.
+    auto *closure = dyn_cast_or_null<ClosureExpr>(E->getSubExpr());
+    if (!closure)
+      return ShouldRecurse;
+
+    auto *params = closure->getParameters();
+    if (!params || params->size() < 1)
+      return ShouldRecurse;
+
+    Type paramType = params->get(0)->getInterfaceType();
+    if (!paramType)
+      return ShouldRecurse;
+
+    if (auto *inoutType = paramType->getAs<InOutType>())
+      paramType = inoutType->getObjectType();
+
+    ProtocolDecl *proto = extractProtocolDecl(paramType);
+    if (!proto)
+      return ShouldRecurse;
+
+    if (!isEffectAvailable(proto)) {
+      Ctx.Diags.diagnose(E->getPerformLoc(),
+                         diag::context_effect_perform_not_available,
+                         proto->getName());
+    }
+    return ShouldRecurse;
+  }
+
   ShouldRecurse_t checkApply(ApplyExpr *E) {
     if (!E->getType() || E->getType()->hasError())
       return ShouldNotRecurse;
@@ -5207,14 +5284,15 @@ public:
     if (!calleeEffects)
       return ShouldRecurse;
 
-    // If caller has no performs clause, it's unrestricted — allow everything.
-    if (!CallerEffects)
+    // If caller has no performs clause and no narrowing scopes, it's
+    // unrestricted — allow everything.
+    if (!CallerEffects && NarrowingScope.empty())
       return ShouldRecurse;
 
-    // Compute set difference: callee effects not in caller's set.
+    // Compute set difference: callee effects not available.
     SmallVector<ProtocolDecl *, 4> missing;
     for (auto *calleeEffect : *calleeEffects) {
-      if (!CallerEffectSet.count(calleeEffect))
+      if (!isEffectAvailable(calleeEffect))
         missing.push_back(calleeEffect);
     }
 
@@ -5222,14 +5300,23 @@ public:
       return ShouldRecurse;
 
     // Emit diagnostic.
-    if (CallerEffects->empty()) {
-      // performs(Never) context.
+    if (CallerEffects && CallerEffects->empty() && NarrowingScope.empty()) {
+      // performs(Never) context with no narrowing scopes.
       Ctx.Diags.diagnose(E->getLoc(),
                          diag::context_effect_in_performs_never);
     } else {
+      // Collect all available effects for the diagnostic message.
+      SmallVector<ProtocolDecl *, 4> available;
+      if (CallerEffects)
+        available.append(CallerEffects->begin(), CallerEffects->end());
+      for (auto &scope : NarrowingScope)
+        for (auto *p : scope)
+          available.push_back(p);
       Ctx.Diags.diagnose(E->getLoc(), diag::context_effect_not_allowed,
                          formatEffectSet(missing),
-                         formatEffectSet(*CallerEffects));
+                         available.empty()
+                           ? StringRef("none")
+                           : formatEffectSet(available));
     }
 
     Ctx.Diags.diagnose(calleeDecl->getLoc(),
@@ -5278,10 +5365,13 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
     if (auto superInit = ctor->getSuperInitCall())
       superInit->walk(checker);
 
-  // Check context effects coverage if the function has a performs clause.
-  if (ctx.LangOpts.hasFeature(Feature::ContextEffects) &&
-      fn->hasPerforms()) {
-    auto callerEffects = resolvePerformedEffects(fn, ctx);
+  // Check context effects coverage. Run on all functions when ContextEffects
+  // is enabled (not just those with performs clauses), because do...handle
+  // blocks can introduce effect narrowing in unannotated functions.
+  if (ctx.LangOpts.hasFeature(Feature::ContextEffects)) {
+    auto callerEffects = fn->hasPerforms()
+        ? resolvePerformedEffects(fn, ctx)
+        : std::nullopt;
     CheckContextEffectsCoverage contextChecker(ctx, std::move(callerEffects));
     if (auto body = fn->getBody())
       body->walk(contextChecker);
