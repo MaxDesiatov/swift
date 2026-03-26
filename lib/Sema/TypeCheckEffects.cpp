@@ -19,6 +19,7 @@
 #include "OpenedExistentials.h"
 #include "TypeCheckConcurrency.h"
 #include "TypeCheckEffects.h"
+#include "TypeCheckType.h"
 #include "TypeCheckUnsafe.h"
 #include "swift/AST/ASTBridging.h"
 #include "swift/AST/ASTWalker.h"
@@ -5005,6 +5006,212 @@ struct LocalFunctionEffectsChecker : ASTWalker {
   }
 };
 
+/// Resolve the types in a function's performs clause to ProtocolDecl values.
+/// Returns std::nullopt if the function has no performs clause (unrestricted).
+/// Returns an empty vector for performs(Never).
+/// Returns a non-empty vector of the declared effect protocols otherwise.
+static std::optional<SmallVector<ProtocolDecl *, 4>>
+resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
+  if (!fn->hasPerforms())
+    return std::nullopt;
+
+  auto performedEffects = fn->getPerformedEffects();
+  SmallVector<ProtocolDecl *, 4> result;
+
+  auto *effectProto = ctx.getProtocol(KnownProtocolKind::Effect);
+
+  for (auto &typeLoc : performedEffects) {
+    auto *typeRepr = typeLoc.getTypeRepr();
+    if (!typeRepr)
+      continue;
+
+    // Resolve the type using the same pattern as ExplicitCaughtTypeRequest.
+    auto options = TypeResolutionOptions(TypeResolverContext::None);
+    auto resolvedType = TypeResolution::forInterface(fn, options,
+                                                     /*unboundTyOpener*/ nullptr,
+                                                     /*placeholderOpener*/ nullptr,
+                                                     /*packElementOpener*/ nullptr)
+        .resolveType(typeRepr);
+    if (resolvedType->hasError())
+      continue;
+
+    // Check for Never.
+    if (resolvedType->isNever())
+      continue;
+
+    // Extract the protocol decl from the resolved type.
+    // The type may be either a ProtocolType or an ExistentialType wrapping one.
+    ProtocolDecl *protoDecl = nullptr;
+    if (auto *protoType = resolvedType->getAs<ProtocolType>()) {
+      protoDecl = protoType->getDecl();
+    } else if (auto *existType = resolvedType->getAs<ExistentialType>()) {
+      if (auto *protoType2 =
+              existType->getConstraintType()->getAs<ProtocolType>()) {
+        protoDecl = protoType2->getDecl();
+      }
+    }
+
+    if (!protoDecl) {
+      ctx.Diags.diagnose(typeRepr->getLoc(),
+                         diag::context_effect_type_not_effect_protocol,
+                         resolvedType);
+      continue;
+    }
+
+    // Validate that the protocol inherits from Effect.
+    if (effectProto && protoDecl != effectProto &&
+        !protoDecl->inheritsFrom(effectProto)) {
+      ctx.Diags.diagnose(typeRepr->getLoc(),
+                         diag::context_effect_type_not_effect_protocol,
+                         resolvedType);
+      continue;
+    }
+
+    result.push_back(protoDecl);
+  }
+
+  return result;
+}
+
+/// Format a set of performed effects as a comma-separated string.
+static std::string formatEffectSet(ArrayRef<ProtocolDecl *> effects) {
+  std::string result;
+  llvm::raw_string_ostream os(result);
+  for (unsigned i = 0; i < effects.size(); ++i) {
+    if (i > 0) os << ", ";
+    os << effects[i]->getName();
+  }
+  return result;
+}
+
+/// A walker that checks context effects coverage: verifies that callees'
+/// effect sets are subsets of the caller's effect set.
+class CheckContextEffectsCoverage
+    : public EffectsHandlingWalker<CheckContextEffectsCoverage> {
+  friend class EffectsHandlingWalker<CheckContextEffectsCoverage>;
+
+  ASTContext &Ctx;
+  std::optional<SmallVector<ProtocolDecl *, 4>> CallerEffects;
+
+public:
+  CheckContextEffectsCoverage(
+      ASTContext &ctx,
+      std::optional<SmallVector<ProtocolDecl *, 4>> callerEffects)
+      : Ctx(ctx), CallerEffects(std::move(callerEffects)) {}
+
+  ShouldRecurse_t checkClosure(ClosureExpr *) {
+    return ShouldNotRecurse;
+  }
+  ShouldRecurse_t checkAutoClosure(AutoClosureExpr *) {
+    return ShouldNotRecurse;
+  }
+  ShouldRecurse_t checkAwait(AwaitExpr *) { return ShouldRecurse; }
+  ShouldRecurse_t checkTry(TryExpr *) { return ShouldRecurse; }
+  ShouldRecurse_t checkForceTry(ForceTryExpr *) { return ShouldRecurse; }
+  ShouldRecurse_t checkOptionalTry(OptionalTryExpr *) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkUnsafe(UnsafeExpr *) { return ShouldRecurse; }
+  ShouldRecurse_t checkAsyncLet(PatternBindingDecl *) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkLookup(LookupExpr *) { return ShouldRecurse; }
+  ShouldRecurse_t checkDeclRef(Expr *, ConcreteDeclRef, SourceLoc,
+                               bool, bool, bool) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkInterpolatedStringLiteral(
+      InterpolatedStringLiteralExpr *) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkSingleValueStmtExpr(SingleValueStmtExpr *) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkWithSubstitutionMap(Expr *, SubstitutionMap) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkWithConformances(Expr *,
+                                        ArrayRef<ProtocolConformanceRef>) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkType(Expr *, TypeRepr *, Type) {
+    return ShouldRecurse;
+  }
+  void flagInvalidCode() {}
+  void visitExprPre(Expr *) {}
+
+  // Statement-related stubs — we just recurse through everything.
+  ShouldRecurse_t checkThrow(ThrowStmt *) { return ShouldRecurse; }
+  ShouldRecurse_t checkDefer(DeferStmt *) { return ShouldRecurse; }
+  ShouldRecurse_t checkTemporarilyEscapable(MakeTemporarilyEscapableExpr *) {
+    return ShouldRecurse;
+  }
+  ShouldRecurse_t checkObjCSelector(ObjCSelectorExpr *) {
+    return ShouldRecurse;
+  }
+  // Override checkDoCatch to simply recurse, bypassing the base class's
+  // decomposition into checkExhaustiveDoBody/checkNonExhaustiveDoBody/checkCatch.
+  ShouldRecurse_t checkDoCatch(DoCatchStmt *) { return ShouldRecurse; }
+
+  ShouldRecurse_t checkApply(ApplyExpr *E) {
+    if (!E->getType() || E->getType()->hasError())
+      return ShouldNotRecurse;
+
+    auto fnRef = AbstractFunction::getAppliedFn(E);
+    if (fnRef.getKind() != AbstractFunction::Kind::Function)
+      return ShouldRecurse;
+
+    auto *calleeDecl = fnRef.getFunction();
+    if (!calleeDecl->hasPerforms())
+      return ShouldRecurse;
+
+    auto calleeEffects = resolvePerformedEffects(calleeDecl, Ctx);
+    if (!calleeEffects)
+      return ShouldRecurse;
+
+    // If caller has no performs clause, it's unrestricted — allow everything.
+    if (!CallerEffects)
+      return ShouldRecurse;
+
+    // Compute set difference: callee effects not in caller's set.
+    SmallVector<ProtocolDecl *, 4> missing;
+    for (auto *calleeEffect : *calleeEffects) {
+      bool found = false;
+      for (auto *callerEffect : *CallerEffects) {
+        if (callerEffect == calleeEffect) {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+        missing.push_back(calleeEffect);
+    }
+
+    if (missing.empty())
+      return ShouldRecurse;
+
+    // Emit diagnostic.
+    if (CallerEffects->empty()) {
+      // performs(Never) context.
+      Ctx.Diags.diagnose(E->getLoc(),
+                         diag::context_effect_in_performs_never);
+    } else {
+      for (auto *proto : missing) {
+        Ctx.Diags.diagnose(
+            E->getLoc(), diag::context_effect_not_allowed,
+            proto->getDeclaredInterfaceType(),
+            formatEffectSet(*CallerEffects));
+      }
+    }
+
+    Ctx.Diags.diagnose(calleeDecl->getLoc(),
+                        diag::callee_declared_performs_here,
+                        calleeDecl->getName());
+
+    return ShouldRecurse;
+  }
+};
+
 } // end anonymous namespace
 
 void TypeChecker::checkTopLevelEffects(TopLevelCodeDecl *code) {
@@ -5042,6 +5249,15 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
   if (auto ctor = dyn_cast<ConstructorDecl>(fn))
     if (auto superInit = ctor->getSuperInitCall())
       superInit->walk(checker);
+
+  // Check context effects coverage if the function has a performs clause.
+  if (ctx.LangOpts.hasFeature(Feature::ContextEffects) &&
+      fn->hasPerforms()) {
+    auto callerEffects = resolvePerformedEffects(fn, ctx);
+    CheckContextEffectsCoverage contextChecker(ctx, std::move(callerEffects));
+    if (auto body = fn->getBody())
+      body->walk(contextChecker);
+  }
 }
 
 evaluator::SideEffect

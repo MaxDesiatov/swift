@@ -21,6 +21,4 @@
 ///         mutating func readFile(at path: String) -> String
 ///     }
 ///
-#if $ContextEffects
 @_marker public protocol Effect: ~Copyable, ~Escapable {}
-#endif

@@ -717,6 +717,8 @@ extension ASTGenVisitor {
 extension ASTGenVisitor {
   struct GeneratedFunctionSignature {
     var parameterList: BridgedParameterList
+    var performsLoc: SourceLoc
+    var performedEffectTypes: [BridgedTypeRepr]
     var asyncLoc: SourceLoc
     var isReasync: Bool
     var throwsLoc: SourceLoc
@@ -730,6 +732,10 @@ extension ASTGenVisitor {
     for context: ParameterContext
   ) -> GeneratedFunctionSignature {
     let parameterList = self.generate(functionParameterClause: node.parameterClause, for: context)
+    let performsLoc = self.generateSourceLoc(node.effectSpecifiers?.performsClause?.performsSpecifier)
+    let performedEffectTypes = node.effectSpecifiers?.performsClause?.types.map {
+      self.generate(type: $0.type)
+    } ?? []
     let asyncLoc = self.generateSourceLoc(node.effectSpecifiers?.asyncSpecifier)
     let isReasync = node.effectSpecifiers?.asyncSpecifier?.rawText == "reasync"
     let throwsLoc = self.generateSourceLoc(node.effectSpecifiers?.throwsClause?.throwsSpecifier)
@@ -738,6 +744,8 @@ extension ASTGenVisitor {
     let returnType = (node.returnClause?.type).map(self.generate(type:))
     return GeneratedFunctionSignature(
       parameterList: parameterList,
+      performsLoc: performsLoc,
+      performedEffectTypes: performedEffectTypes,
       asyncLoc: asyncLoc,
       isReasync: isReasync,
       throwsLoc: throwsLoc,
@@ -773,6 +781,11 @@ extension ASTGenVisitor {
       returnType: signature.returnType.asNullable,
       genericWhereClause: self.generate(genericWhereClause: node.genericWhereClause)
     )
+    if signature.performsLoc.isValid {
+      decl.setParsedPerforms(
+        performsLoc: signature.performsLoc,
+        types: signature.performedEffectTypes.lazy.bridgedArray(in: self))
+    }
     if signature.isReasync {
       attrs.attributes.add(BridgedDeclAttribute.createSimple(self.ctx, kind: .Reasync, atLoc: nil, nameLoc: signature.asyncLoc))
     }
@@ -810,6 +823,11 @@ extension ASTGenVisitor {
       thrownType: signature.thrownType.asNullable,
       genericWhereClause: self.generate(genericWhereClause: node.genericWhereClause)
     )
+    if signature.performsLoc.isValid {
+      decl.setParsedPerforms(
+        performsLoc: signature.performsLoc,
+        types: signature.performedEffectTypes.lazy.bridgedArray(in: self))
+    }
     if signature.isReasync {
       attrs.attributes.add(BridgedDeclAttribute.createSimple(self.ctx, kind: .Reasync, atLoc: nil, nameLoc: signature.asyncLoc))
     }
@@ -817,7 +835,7 @@ extension ASTGenVisitor {
       attrs.attributes.add(BridgedDeclAttribute.createSimple(self.ctx, kind: .Rethrows, atLoc: nil, nameLoc: signature.throwsLoc))
     }
     decl.asDecl.attachParsedAttrs(attrs.attributes)
-    
+
     guard signature.returnType == nil else {
       // TODO: Diagnose.
       fatalError("unexpected return type in initializer decl")

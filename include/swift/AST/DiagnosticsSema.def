@@ -5705,6 +5705,23 @@ ERROR(typed_throw_in_objc_forbidden,none,
       (const AbstractFunctionDecl *))
 
 //------------------------------------------------------------------------------
+// MARK: Context Effects
+//------------------------------------------------------------------------------
+ERROR(context_effect_not_allowed,none,
+      "call to function that performs %0 is not allowed; "
+      "enclosing function only performs %1", (Type, StringRef))
+
+ERROR(context_effect_in_performs_never,none,
+      "call to function that performs effects is not allowed in a "
+      "'performs(Never)' context", ())
+
+ERROR(context_effect_type_not_effect_protocol,none,
+      "type %0 in 'performs' clause does not conform to 'Effect'", (Type))
+
+NOTE(callee_declared_performs_here,none,
+      "%0 declared here", (DeclName))
+
+//------------------------------------------------------------------------------
 // MARK: Concurrency
 //------------------------------------------------------------------------------
 ERROR(async_expr_without_await,none,

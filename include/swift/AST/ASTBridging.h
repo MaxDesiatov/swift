@@ -1501,6 +1501,10 @@ BridgedFuncDecl BridgedFuncDecl_createParsed(
     BridgedNullableTypeRepr returnType,
     BridgedNullableTrailingWhereClause opaqueGenericWhereClause);
 
+SWIFT_NAME("BridgedFuncDecl.setParsedPerforms(self:performsLoc:types:)")
+void BridgedFuncDecl_setParsedPerforms(BridgedFuncDecl decl,
+    swift::SourceLoc performsLoc, BridgedArrayRef types);
+
 SWIFT_NAME(
     "BridgedConstructorDecl.createParsed(_:declContext:initKeywordLoc:"
     "failabilityMarkLoc:isIUO:genericParamList:parameterList:"
@@ -1512,6 +1516,11 @@ BridgedConstructorDecl BridgedConstructorDecl_createParsed(
     BridgedParameterList parameterList, swift::SourceLoc asyncLoc,
     swift::SourceLoc throwsLoc, BridgedNullableTypeRepr thrownType,
     BridgedNullableTrailingWhereClause genericWhereClause);
+
+SWIFT_NAME(
+    "BridgedConstructorDecl.setParsedPerforms(self:performsLoc:types:)")
+void BridgedConstructorDecl_setParsedPerforms(BridgedConstructorDecl decl,
+    swift::SourceLoc performsLoc, BridgedArrayRef types);
 
 SWIFT_NAME(
     "BridgedDestructorDecl.createParsed(_:declContext:deinitKeywordLoc:)")

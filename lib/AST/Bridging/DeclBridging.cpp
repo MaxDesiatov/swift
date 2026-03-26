@@ -241,6 +241,17 @@ BridgedFuncDecl BridgedFuncDecl_createParsed(
   return decl;
 }
 
+void BridgedFuncDecl_setParsedPerforms(BridgedFuncDecl cDecl,
+                                       SourceLoc performsLoc,
+                                       BridgedArrayRef cTypes) {
+  auto *decl = cDecl.unbridged();
+  ASTContext &ctx = decl->getASTContext();
+  auto types = ctx.AllocateTransform<TypeLoc>(
+      cTypes.unbridged<BridgedTypeRepr>(),
+      [](auto &e) { return TypeLoc(e.unbridged()); });
+  decl->setPerforms(performsLoc, types);
+}
+
 BridgedConstructorDecl BridgedConstructorDecl_createParsed(
     BridgedASTContext cContext, BridgedDeclContext cDeclContext,
     SourceLoc initKeywordLoc, SourceLoc failabilityMarkLoc, bool isIUO,
@@ -265,6 +276,17 @@ BridgedConstructorDecl BridgedConstructorDecl_createParsed(
   decl->setImplicitlyUnwrappedOptional(isIUO);
 
   return decl;
+}
+
+void BridgedConstructorDecl_setParsedPerforms(BridgedConstructorDecl cDecl,
+                                              SourceLoc performsLoc,
+                                              BridgedArrayRef cTypes) {
+  auto *decl = cDecl.unbridged();
+  ASTContext &ctx = decl->getASTContext();
+  auto types = ctx.AllocateTransform<TypeLoc>(
+      cTypes.unbridged<BridgedTypeRepr>(),
+      [](auto &e) { return TypeLoc(e.unbridged()); });
+  decl->setPerforms(performsLoc, types);
 }
 
 BridgedDestructorDecl
