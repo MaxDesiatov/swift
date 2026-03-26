@@ -5022,8 +5022,14 @@ resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
 
   auto performedEffects = fn->getPerformedEffects();
   SmallVector<ProtocolDecl *, 4> result;
+  bool sawNever = false;
 
   auto *effectProto = ctx.getProtocol(KnownProtocolKind::Effect);
+  if (!effectProto) {
+    ctx.Diags.diagnose(fn->getPerformsLoc(),
+                       diag::context_effect_missing_effect_protocol);
+    return std::nullopt;
+  }
 
   for (auto &typeLoc : performedEffects) {
     auto *typeRepr = typeLoc.getTypeRepr();
@@ -5041,8 +5047,10 @@ resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
       continue;
 
     // Check for Never.
-    if (resolvedType->isNever())
+    if (resolvedType->isNever()) {
+      sawNever = true;
       continue;
+    }
 
     // Extract the protocol decl from the resolved type.
     // The type may be either a ProtocolType or an ExistentialType wrapping one.
@@ -5064,7 +5072,7 @@ resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
     }
 
     // Validate that the protocol inherits from Effect.
-    if (effectProto && protoDecl != effectProto &&
+    if (protoDecl != effectProto &&
         !protoDecl->inheritsFrom(effectProto)) {
       ctx.Diags.diagnose(typeRepr->getLoc(),
                          diag::context_effect_type_not_effect_protocol,
@@ -5075,16 +5083,22 @@ resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
     result.push_back(protoDecl);
   }
 
+  if (sawNever && !result.empty()) {
+    ctx.Diags.diagnose(fn->getPerformsLoc(),
+                       diag::context_effect_never_with_other_types);
+    result.clear(); // Treat as performs(Never)
+  }
+
   return result;
 }
 
-/// Format a set of performed effects as a comma-separated string.
+/// Format a set of performed effects as a comma-separated, quoted string.
 static std::string formatEffectSet(ArrayRef<ProtocolDecl *> effects) {
   std::string result;
   llvm::raw_string_ostream os(result);
   for (unsigned i = 0; i < effects.size(); ++i) {
     if (i > 0) os << ", ";
-    os << effects[i]->getName();
+    os << "'" << effects[i]->getName() << "'";
   }
   return result;
 }
@@ -5097,18 +5111,33 @@ class CheckContextEffectsCoverage
 
   ASTContext &Ctx;
   std::optional<SmallVector<ProtocolDecl *, 4>> CallerEffects;
+  llvm::SmallPtrSet<ProtocolDecl *, 4> CallerEffectSet;
+  llvm::DenseMap<AbstractFunctionDecl *,
+                 std::optional<SmallVector<ProtocolDecl *, 4>>> ResolvedCache;
+
+  const std::optional<SmallVector<ProtocolDecl *, 4>> &
+  getOrResolveEffects(AbstractFunctionDecl *fn) {
+    auto it = ResolvedCache.find(fn);
+    if (it != ResolvedCache.end())
+      return it->second;
+    return ResolvedCache.insert({fn, resolvePerformedEffects(fn, Ctx)})
+        .first->second;
+  }
 
 public:
   CheckContextEffectsCoverage(
       ASTContext &ctx,
       std::optional<SmallVector<ProtocolDecl *, 4>> callerEffects)
-      : Ctx(ctx), CallerEffects(std::move(callerEffects)) {}
+      : Ctx(ctx), CallerEffects(std::move(callerEffects)) {
+    if (CallerEffects)
+      CallerEffectSet.insert(CallerEffects->begin(), CallerEffects->end());
+  }
 
   ShouldRecurse_t checkClosure(ClosureExpr *) {
     return ShouldNotRecurse;
   }
   ShouldRecurse_t checkAutoClosure(AutoClosureExpr *) {
-    return ShouldNotRecurse;
+    return ShouldRecurse; // Autoclosures execute in caller's context
   }
   ShouldRecurse_t checkAwait(AwaitExpr *) { return ShouldRecurse; }
   ShouldRecurse_t checkTry(TryExpr *) { return ShouldRecurse; }
@@ -5154,13 +5183,22 @@ public:
   ShouldRecurse_t checkObjCSelector(ObjCSelectorExpr *) {
     return ShouldRecurse;
   }
-  // Override checkDoCatch to simply recurse, bypassing the base class's
-  // decomposition into checkExhaustiveDoBody/checkNonExhaustiveDoBody/checkCatch.
+  // Override the base class's checkDoCatch which decomposes into
+  // checkExhaustiveDoBody/checkNonExhaustiveDoBody/checkCatch and returns
+  // ShouldNotRecurse. For context effects we recurse uniformly through
+  // all statements — we don't care about try/catch structure. Returning
+  // ShouldRecurse means walkToStmtPre continues into children normally.
   ShouldRecurse_t checkDoCatch(DoCatchStmt *) { return ShouldRecurse; }
 
   ShouldRecurse_t checkApply(ApplyExpr *E) {
     if (!E->getType() || E->getType()->hasError())
       return ShouldNotRecurse;
+
+    // Skip the implicit self-application of method calls (DotSyntaxCallExpr,
+    // ConstructorRefCallExpr). We check the outer CallExpr instead to avoid
+    // emitting duplicate diagnostics.
+    if (isa<SelfApplyExpr>(E))
+      return ShouldRecurse;
 
     auto fnRef = AbstractFunction::getAppliedFn(E);
     if (fnRef.getKind() != AbstractFunction::Kind::Function)
@@ -5170,7 +5208,7 @@ public:
     if (!calleeDecl->hasPerforms())
       return ShouldRecurse;
 
-    auto calleeEffects = resolvePerformedEffects(calleeDecl, Ctx);
+    const auto &calleeEffects = getOrResolveEffects(calleeDecl);
     if (!calleeEffects)
       return ShouldRecurse;
 
@@ -5181,14 +5219,7 @@ public:
     // Compute set difference: callee effects not in caller's set.
     SmallVector<ProtocolDecl *, 4> missing;
     for (auto *calleeEffect : *calleeEffects) {
-      bool found = false;
-      for (auto *callerEffect : *CallerEffects) {
-        if (callerEffect == calleeEffect) {
-          found = true;
-          break;
-        }
-      }
-      if (!found)
+      if (!CallerEffectSet.count(calleeEffect))
         missing.push_back(calleeEffect);
     }
 
@@ -5201,12 +5232,9 @@ public:
       Ctx.Diags.diagnose(E->getLoc(),
                          diag::context_effect_in_performs_never);
     } else {
-      for (auto *proto : missing) {
-        Ctx.Diags.diagnose(
-            E->getLoc(), diag::context_effect_not_allowed,
-            proto->getDeclaredInterfaceType(),
-            formatEffectSet(*CallerEffects));
-      }
+      Ctx.Diags.diagnose(E->getLoc(), diag::context_effect_not_allowed,
+                         formatEffectSet(missing),
+                         formatEffectSet(*CallerEffects));
     }
 
     Ctx.Diags.diagnose(calleeDecl->getLoc(),
