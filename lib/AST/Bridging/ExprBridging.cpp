@@ -85,6 +85,12 @@ BridgedAwaitExpr BridgedAwaitExpr_createParsed(BridgedASTContext cContext,
   return new (cContext.unbridged()) AwaitExpr(awaitLoc, cSubExpr.unbridged());
 }
 
+BridgedPerformExpr BridgedPerformExpr_createParsed(
+    BridgedASTContext cContext, SourceLoc performLoc, BridgedExpr cSubExpr) {
+  return new (cContext.unbridged())
+      PerformExpr(performLoc, cSubExpr.unbridged());
+}
+
 BridgedBindOptionalExpr BridgedBindOptionalExpr_createParsed(
     BridgedASTContext cContext, BridgedExpr cSubExpr, SourceLoc questionLoc) {
   ASTContext &context = cContext.unbridged();

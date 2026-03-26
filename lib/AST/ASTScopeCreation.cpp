@@ -432,13 +432,7 @@ public:
   VISIT_AND_CREATE(RepeatWhileStmt, RepeatWhileScope)
   VISIT_AND_CREATE(DoStmt, DoStmtScope)
   VISIT_AND_CREATE(DoCatchStmt, DoCatchStmtScope)
-
-  // DoHandleStmt: for now, just walk the body and ignore handle clauses.
-  // TODO: Create a proper DoHandleStmtScope when effect handling is lowered.
-  ASTScopeImpl *visitDoHandleStmt(DoHandleStmt *w, ASTScopeImpl *p,
-                                  ScopeCreator &scopeCreator) {
-    return p;
-  }
+  VISIT_AND_CREATE(DoHandleStmt, DoHandleStmtScope)
 
   VISIT_AND_CREATE(SwitchStmt, SwitchStmtScope)
   VISIT_AND_CREATE(ForEachStmt, ForEachStmtScope)
@@ -831,6 +825,7 @@ NO_NEW_INSERTION_POINT(ClosureParametersScope)
 NO_NEW_INSERTION_POINT(DefaultArgumentInitializerScope)
 NO_NEW_INSERTION_POINT(DoStmtScope)
 NO_NEW_INSERTION_POINT(DoCatchStmtScope)
+NO_NEW_INSERTION_POINT(DoHandleStmtScope)
 NO_NEW_INSERTION_POINT(ForEachPatternScope)
 NO_NEW_INSERTION_POINT(ForEachStmtScope)
 NO_NEW_INSERTION_POINT(IfStmtScope)
@@ -1173,6 +1168,11 @@ void DoCatchStmtScope::expandAScopeThatDoesNotCreateANewInsertionPoint(
 
   for (auto catchClause : stmt->getCatches())
     scopeCreator.addToScopeTree(catchClause, this);
+}
+
+void DoHandleStmtScope::expandAScopeThatDoesNotCreateANewInsertionPoint(
+    ScopeCreator &scopeCreator) {
+  scopeCreator.addToScopeTree(stmt->getBody(), this);
 }
 
 void SwitchStmtScope::expandAScopeThatDoesNotCreateANewInsertionPoint(
