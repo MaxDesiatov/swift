@@ -2207,6 +2207,29 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
     }
   }
 
+  // Parse optional 'performs(TypeList)' clause for do...handle.
+  SourceLoc performsLoc;
+  SmallVector<TypeRepr *, 2> performsTypes;
+  if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
+      Tok.isContextualKeyword("performs")) {
+    performsLoc = consumeToken();
+    if (Tok.is(tok::l_paren)) {
+      SourceLoc lParenLoc = consumeToken();
+      while (!Tok.is(tok::r_paren) && !Tok.is(tok::eof)) {
+        ParserResult<TypeRepr> ty = parseType(diag::expected_type);
+        status |= ty;
+        if (ty.getPtrOrNull())
+          performsTypes.push_back(ty.get());
+        if (!consumeIf(tok::comma))
+          break;
+      }
+      SourceLoc rParenLoc;
+      parseMatchingToken(tok::r_paren, rParenLoc,
+                         diag::expected_rparen_after_thrown_error_type,
+                         lParenLoc);
+    }
+  }
+
   ParserResult<BraceStmt> body =
       parseBraceItemList(diag::expected_lbrace_after_do);
   status |= body;
@@ -2280,10 +2303,15 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
       handleClauses.push_back(clause);
     } while (consumeIf(tok::comma));
 
+    SmallVector<TypeLoc, 2> performsTypeLocs;
+    for (auto *repr : performsTypes)
+      performsTypeLocs.push_back(TypeLoc(repr));
+
     return makeParserResult(
         status,
         DoHandleStmt::create(Context, labelInfo, doLoc, body.get(),
-                             handleClauses));
+                             handleClauses, performsLoc,
+                             Context.AllocateCopy(performsTypeLocs)));
   }
 
   if (throwsLoc.isValid()) {

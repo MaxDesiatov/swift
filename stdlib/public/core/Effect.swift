@@ -21,4 +21,5 @@
 ///         mutating func readFile(at path: String) -> String
 ///     }
 ///
+@_spi(ExperimentalContextEffects)
 @_marker public protocol Effect: ~Copyable, ~Escapable {}

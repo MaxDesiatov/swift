@@ -487,12 +487,16 @@ DoHandleStmt *DoHandleStmt::create(ASTContext &ctx,
                                    LabeledStmtInfo labelInfo,
                                    SourceLoc doLoc, Stmt *body,
                                    ArrayRef<HandleClauseInfo> handleClauses,
+                                   SourceLoc performsLoc,
+                                   ArrayRef<TypeLoc> performsTypes,
                                    std::optional<bool> implicit) {
   void *mem = ctx.Allocate(
-      totalSizeToAlloc<HandleClauseInfo>(handleClauses.size()),
+      totalSizeToAlloc<HandleClauseInfo, TypeLoc>(handleClauses.size(),
+                                                  performsTypes.size()),
       alignof(DoHandleStmt));
   return ::new (mem)
-      DoHandleStmt(labelInfo, doLoc, body, handleClauses, implicit);
+      DoHandleStmt(labelInfo, doLoc, body, handleClauses,
+                   performsLoc, performsTypes, implicit);
 }
 
 SourceLoc DoHandleStmt::getEndLoc() const {

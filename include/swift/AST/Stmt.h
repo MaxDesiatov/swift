@@ -98,9 +98,10 @@ protected:
     NumCatches : 32
   );
 
-  SWIFT_INLINE_BITFIELD_FULL(DoHandleStmt, LabeledStmt, 32,
+  SWIFT_INLINE_BITFIELD_FULL(DoHandleStmt, LabeledStmt, 32+16,
     : NumPadBits,
-    NumHandleClauses : 32
+    NumHandleClauses : 32,
+    NumPerformsTypes : 16
   );
 
   SWIFT_INLINE_BITFIELD_FULL(SwitchStmt, LabeledStmt, 32,
@@ -1635,27 +1636,39 @@ struct HandleClauseInfo {
 /// \endcode
 class DoHandleStmt final
     : public LabeledStmt,
-      private llvm::TrailingObjects<DoHandleStmt, HandleClauseInfo> {
+      private llvm::TrailingObjects<DoHandleStmt, HandleClauseInfo, TypeLoc> {
   friend TrailingObjects;
 
   SourceLoc DoLoc;
+  SourceLoc PerformsLoc;
   Stmt *Body;
+
+  size_t numTrailingObjects(OverloadToken<HandleClauseInfo>) const {
+    return Bits.DoHandleStmt.NumHandleClauses;
+  }
 
   DoHandleStmt(LabeledStmtInfo labelInfo, SourceLoc doLoc, Stmt *body,
                ArrayRef<HandleClauseInfo> handleClauses,
+               SourceLoc performsLoc,
+               ArrayRef<TypeLoc> performsTypes,
                std::optional<bool> implicit)
       : LabeledStmt(StmtKind::DoHandle,
                      getDefaultImplicitFlag(implicit, doLoc), labelInfo),
-        DoLoc(doLoc), Body(body) {
+        DoLoc(doLoc), PerformsLoc(performsLoc), Body(body) {
     Bits.DoHandleStmt.NumHandleClauses = handleClauses.size();
+    Bits.DoHandleStmt.NumPerformsTypes = performsTypes.size();
     std::uninitialized_copy(handleClauses.begin(), handleClauses.end(),
-                            getTrailingObjects());
+                            getTrailingObjects<HandleClauseInfo>());
+    std::uninitialized_copy(performsTypes.begin(), performsTypes.end(),
+                            getTrailingObjects<TypeLoc>());
   }
 
 public:
   static DoHandleStmt *create(ASTContext &ctx, LabeledStmtInfo labelInfo,
                                SourceLoc doLoc, Stmt *body,
                                ArrayRef<HandleClauseInfo> handleClauses,
+                               SourceLoc performsLoc = SourceLoc(),
+                               ArrayRef<TypeLoc> performsTypes = {},
                                std::optional<bool> implicit = std::nullopt);
 
   SourceLoc getDoLoc() const { return DoLoc; }
@@ -1666,14 +1679,27 @@ public:
   Stmt *getBody() const { return Body; }
   void setBody(Stmt *s) { Body = s; }
 
+  bool hasPerformsClause() const { return PerformsLoc.isValid(); }
+  SourceLoc getPerformsLoc() const { return PerformsLoc; }
+
+  ArrayRef<TypeLoc> getPerformsTypes() const {
+    auto numTypes = static_cast<size_t>(Bits.DoHandleStmt.NumPerformsTypes);
+    return {getTrailingObjects<TypeLoc>(), numTypes};
+  }
+
+  MutableArrayRef<TypeLoc> getMutablePerformsTypes() {
+    auto numTypes = static_cast<size_t>(Bits.DoHandleStmt.NumPerformsTypes);
+    return {getTrailingObjects<TypeLoc>(), numTypes};
+  }
+
   ArrayRef<HandleClauseInfo> getHandleClauses() const {
     auto numClauses = static_cast<size_t>(Bits.DoHandleStmt.NumHandleClauses);
-    return {getTrailingObjects(), numClauses};
+    return {getTrailingObjects<HandleClauseInfo>(), numClauses};
   }
 
   MutableArrayRef<HandleClauseInfo> getMutableHandleClauses() {
     auto numClauses = static_cast<size_t>(Bits.DoHandleStmt.NumHandleClauses);
-    return {getTrailingObjects(), numClauses};
+    return {getTrailingObjects<HandleClauseInfo>(), numClauses};
   }
 
   static bool classof(const Stmt *S) {

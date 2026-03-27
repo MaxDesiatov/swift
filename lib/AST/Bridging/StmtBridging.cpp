@@ -193,7 +193,9 @@ BridgedDoCatchStmt BridgedDoCatchStmt_createParsed(
 BridgedDoHandleStmt BridgedDoHandleStmt_createParsed(
     BridgedASTContext cContext, BridgedLabeledStmtInfo cLabelInfo,
     SourceLoc doLoc, BridgedBraceStmt cBody,
-    BridgedArrayRef cHandleClauses) {
+    BridgedArrayRef cHandleClauses,
+    SourceLoc performsLoc,
+    BridgedArrayRef cPerformsTypes) {
   auto &ctx = cContext.unbridged();
   auto bridgedClauses = cHandleClauses.unbridged<BridgedHandleClauseInfo>();
   SmallVector<HandleClauseInfo, 4> clauses;
@@ -203,8 +205,15 @@ BridgedDoHandleStmt BridgedDoHandleStmt_createParsed(
                        bc.AsLoc,
                        bc.HandlerExpr.unbridged()});
   }
+  auto bridgedPerformsTypes = cPerformsTypes.unbridged<BridgedTypeRepr>();
+  SmallVector<TypeLoc, 2> performsTypes;
+  for (auto &bt : bridgedPerformsTypes) {
+    performsTypes.push_back(TypeLoc(bt.unbridged()));
+  }
   return DoHandleStmt::create(ctx, cLabelInfo.unbridged(), doLoc,
-                              cBody.unbridged(), ctx.AllocateCopy(clauses));
+                              cBody.unbridged(), ctx.AllocateCopy(clauses),
+                              performsLoc,
+                              ctx.AllocateCopy(performsTypes));
 }
 
 BridgedFallthroughStmt
