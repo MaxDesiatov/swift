@@ -33,3 +33,7 @@ do {
 // CHECK: type_function
 let _: () performs(FileSystem) -> Void
 
+// Function taking a performs-annotated function type parameter
+// CHECK: func_decl{{.*}}"takesPerformsFS
+func takesPerformsFS(_ f: () performs(FileSystem) -> Void) {}
+
