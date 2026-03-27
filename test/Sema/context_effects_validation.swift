@@ -148,3 +148,12 @@ typealias FS = FileSystem
 func testAlias() performs(FS) {
   fsOnly()  // OK
 }
+
+// --- init() performs(...) ---
+
+struct InitPerforms {
+  init() performs(FileSystem) { fsOnly() } // expected-note {{declared here}}
+}
+func testInitPerforms() performs(Never) {
+  _ = InitPerforms() // expected-error {{performs effects}}
+}

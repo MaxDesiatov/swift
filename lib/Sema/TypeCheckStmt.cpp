@@ -1788,6 +1788,48 @@ public:
     // Look up the Effect protocol.
     auto *effectProto = Ctx.getProtocol(KnownProtocolKind::Effect);
 
+    // Resolve performs clause types if present.
+    llvm::SmallPtrSet<ProtocolDecl *, 4> declaredEffects;
+    for (auto &typeLoc : S->getMutablePerformsTypes()) {
+      auto *typeRepr = typeLoc.getTypeRepr();
+      if (!typeRepr) continue;
+      auto options = TypeResolutionOptions(TypeResolverContext::None);
+      auto resolvedType =
+          TypeResolution::forInterface(DC, options,
+                                      /*unboundTyOpener*/ nullptr,
+                                      /*placeholderOpener*/ nullptr,
+                                      /*packElementOpener*/ nullptr)
+              .resolveType(typeRepr);
+      typeLoc.setType(resolvedType);
+
+      if (!resolvedType->hasError()) {
+        ProtocolDecl *protoDecl = nullptr;
+        if (auto *protoType = resolvedType->getAs<ProtocolType>())
+          protoDecl = protoType->getDecl();
+        else if (auto *existType = resolvedType->getAs<ExistentialType>())
+          if (auto *protoType2 =
+                  existType->getConstraintType()->getAs<ProtocolType>())
+            protoDecl = protoType2->getDecl();
+
+        bool isEffectProtocol = false;
+        if (effectProto && protoDecl) {
+          isEffectProtocol = (protoDecl == effectProto ||
+                              protoDecl->inheritsFrom(effectProto));
+        }
+
+        if (!isEffectProtocol) {
+          Ctx.Diags.diagnose(typeRepr->getLoc(),
+                             diag::context_effect_type_not_effect_protocol,
+                             resolvedType);
+        } else {
+          declaredEffects.insert(protoDecl);
+        }
+      }
+    }
+
+    // Collect handled effect protocols from handle clauses.
+    llvm::SmallPtrSet<ProtocolDecl *, 4> handledEffects;
+
     // Type-check each handle clause.
     for (auto &clause : S->getMutableHandleClauses()) {
       // Resolve the effect type.
@@ -1823,6 +1865,8 @@ public:
                                diag::context_effect_handle_type_not_effect,
                                resolvedType);
           } else {
+            handledEffects.insert(protoDecl);
+
             // Type-check the handler expression.
             Expr *handlerExpr = clause.HandlerExpr;
             auto handlerTy =
@@ -1839,6 +1883,17 @@ public:
               }
             }
           }
+        }
+      }
+    }
+
+    // Check that every declared performs effect has a handler.
+    if (S->hasPerformsClause()) {
+      for (auto *declaredProto : declaredEffects) {
+        if (!handledEffects.count(declaredProto)) {
+          Ctx.Diags.diagnose(S->getPerformsLoc(),
+                             diag::context_effect_do_performs_unhandled,
+                             declaredProto->getName());
         }
       }
     }

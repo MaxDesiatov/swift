@@ -16,7 +16,8 @@ struct MockNet: Network {
 
 func readViaFS(path: String) performs(FileSystem) -> String { "" } // expected-note {{declared here}}
 func fetchViaNet(url: String) performs(Network) -> String { "" }
-func readAndFetch(path: String, url: String) performs(FileSystem, Network) -> String { "" } // expected-note {{declared here}}
+func readAndFetch(path: String, url: String) performs(FileSystem, Network) -> String { "" } // expected-note 2 {{declared here}}
+func createFSFromNet() performs(Network) -> MockFS { MockFS() } // expected-note {{declared here}}
 
 // --- ASTGen bridging (no crash) ---
 
@@ -99,5 +100,57 @@ func testSameEffectNested() performs(Never) {
       let content = readViaFS(path: "test.txt")
       print("Inner handler:", content)
     } handle MockFS() as FileSystem
+  } handle MockFS() as FileSystem
+}
+
+// --- Handler expression effect checking ---
+
+// Handler expression that performs effects should be checked in outer context
+func testHandlerExprPerforms() performs(Never) {
+  do {
+    let content = readViaFS(path: "test.txt")
+    print(content)
+  } handle createFSFromNet() as FileSystem
+  // expected-error @-1 {{call to function that performs effects is not allowed in a 'performs(Never)' context}}
+}
+
+// --- Labeled do...handle ---
+
+func testLabeledDoHandle() {
+  label: do {
+    let content = readViaFS(path: "test.txt")
+    print(content)
+  } handle MockFS() as FileSystem
+}
+
+// --- Empty do...handle body ---
+
+func testEmptyDoHandle() {
+  do { } handle MockFS() as FileSystem
+}
+
+// --- do performs(E) — constrains the body ---
+
+func testDoPerforms() performs(Never) {
+  do performs(FileSystem) {
+    let content = readViaFS(path: "test.txt")
+    print(content)
+  } handle MockFS() as FileSystem
+}
+
+// do performs(E) — body uses undeclared effect → error
+func testDoPerformsUndeclared() performs(Never) {
+  do performs(FileSystem) {
+    _ = readAndFetch(path: "f.txt", url: "http://x.com")
+    // expected-error @-1 {{performs 'Network'}}
+  } handle MockFS() as FileSystem,
+    MockNet() as Network
+}
+
+// do performs(E) — missing handler for declared effect → error
+func testDoPerformsMissingHandler() performs(Never) {
+  do performs(FileSystem, Network) { // expected-error {{effect 'Network' declared in 'performs' clause has no handler}}
+    let content = readViaFS(path: "test.txt")
+    print(content)
   } handle MockFS() as FileSystem
 }

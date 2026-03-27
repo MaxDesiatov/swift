@@ -1357,6 +1357,27 @@ ImplicitImportInfo CompilerInstance::getImplicitImportInfo() const {
     }
   }
 
+  // When ContextEffects is enabled, add an @_spi(ExperimentalContextEffects)
+  // import of the Swift stdlib so that the Effect protocol is visible.
+  if (Invocation.getLangOptions().hasFeature(Feature::ContextEffects)) {
+    switch (imports.StdlibKind) {
+    case ImplicitStdlibKind::Builtin:
+    case ImplicitStdlibKind::None:
+      break;
+    case ImplicitStdlibKind::Stdlib: {
+      ImportPath::Builder importPath(Context->getIdentifier("Swift"));
+      UnloadedImportedModule import(importPath.copyTo(*Context),
+                                    /*isScoped=*/false);
+      auto spiGroupID = Context->getIdentifier("ExperimentalContextEffects");
+      auto spiGroups = Context->AllocateCopy(ArrayRef<Identifier>{spiGroupID});
+      imports.AdditionalUnloadedImports.emplace_back(
+          import, SourceLoc(), ImportFlags::SPIAccessControl,
+          /*filename*/ StringRef(), spiGroups);
+      break;
+    }
+    }
+  }
+
   if (Invocation.getLangOptions().EnableCXXInterop) {
     if (Invocation.shouldImportCxx() && canImportCxx())
       pushImport(CXX_MODULE_NAME);

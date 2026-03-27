@@ -5738,6 +5738,9 @@ ERROR(context_effect_perform_not_available,none,
       "add it to the enclosing function's 'performs' clause or "
       "provide a handler with 'do...handle'", (Identifier))
 
+ERROR(context_effect_do_performs_unhandled,none,
+      "effect %0 declared in 'performs' clause has no handler", (Identifier))
+
 //------------------------------------------------------------------------------
 // MARK: Concurrency
 //------------------------------------------------------------------------------

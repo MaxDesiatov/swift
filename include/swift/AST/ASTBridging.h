@@ -2477,13 +2477,15 @@ struct BridgedHandleClauseInfo {
 };
 
 SWIFT_NAME("BridgedDoHandleStmt.createParsed(_:labelInfo:doLoc:body:"
-           "handleClauses:)")
+           "handleClauses:performsLoc:performsTypes:)")
 BridgedDoHandleStmt BridgedDoHandleStmt_createParsed(
     BridgedASTContext cContext,
     BridgedLabeledStmtInfo cLabelInfo,
     swift::SourceLoc doLoc,
     BridgedBraceStmt cBody,
-    BridgedArrayRef cHandleClauses);
+    BridgedArrayRef cHandleClauses,
+    swift::SourceLoc performsLoc,
+    BridgedArrayRef cPerformsTypes);
 
 SWIFT_NAME("BridgedFallthroughStmt.createParsed(loc:declContext:)")
 BridgedFallthroughStmt

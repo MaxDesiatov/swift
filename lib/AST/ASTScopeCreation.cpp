@@ -1172,6 +1172,10 @@ void DoCatchStmtScope::expandAScopeThatDoesNotCreateANewInsertionPoint(
 void DoHandleStmtScope::expandAScopeThatDoesNotCreateANewInsertionPoint(
     ScopeCreator &scopeCreator) {
   scopeCreator.addToScopeTree(stmt->getBody(), this);
+  for (auto &clause : stmt->getHandleClauses()) {
+    if (clause.HandlerExpr)
+      scopeCreator.addToScopeTree(clause.HandlerExpr, this);
+  }
 }
 
 void SwitchStmtScope::expandAScopeThatDoesNotCreateANewInsertionPoint(

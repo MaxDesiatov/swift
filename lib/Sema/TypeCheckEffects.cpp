@@ -5013,6 +5013,19 @@ struct LocalFunctionEffectsChecker : ASTWalker {
   }
 };
 
+/// Extract the ProtocolDecl from a type that may be a ProtocolType or an
+/// ExistentialType wrapping a ProtocolType.
+static ProtocolDecl *extractProtocolDecl(Type type) {
+  if (!type || type->hasError())
+    return nullptr;
+  if (auto *pt = type->getAs<ProtocolType>())
+    return pt->getDecl();
+  if (auto *et = type->getAs<ExistentialType>())
+    if (auto *pt2 = et->getConstraintType()->getAs<ProtocolType>())
+      return pt2->getDecl();
+  return nullptr;
+}
+
 /// Resolve the types in a function's performs clause to ProtocolDecl values.
 /// Returns std::nullopt if the function has no performs clause (unrestricted).
 /// Returns an empty vector for performs(Never).
@@ -5055,16 +5068,7 @@ resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
     }
 
     // Extract the protocol decl from the resolved type.
-    // The type may be either a ProtocolType or an ExistentialType wrapping one.
-    ProtocolDecl *protoDecl = nullptr;
-    if (auto *protoType = resolvedType->getAs<ProtocolType>()) {
-      protoDecl = protoType->getDecl();
-    } else if (auto *existType = resolvedType->getAs<ExistentialType>()) {
-      if (auto *protoType2 =
-              existType->getConstraintType()->getAs<ProtocolType>()) {
-        protoDecl = protoType2->getDecl();
-      }
-    }
+    ProtocolDecl *protoDecl = extractProtocolDecl(resolvedType);
 
     if (!protoDecl) {
       ctx.Diags.diagnose(typeRepr->getLoc(),
@@ -5140,17 +5144,6 @@ class CheckContextEffectsCoverage
     return false;
   }
 
-  static ProtocolDecl *extractProtocolDecl(Type type) {
-    if (!type || type->hasError())
-      return nullptr;
-    if (auto *pt = type->getAs<ProtocolType>())
-      return pt->getDecl();
-    if (auto *et = type->getAs<ExistentialType>())
-      if (auto *pt2 = et->getConstraintType()->getAs<ProtocolType>())
-        return pt2->getDecl();
-    return nullptr;
-  }
-
 public:
   CheckContextEffectsCoverage(
       ASTContext &ctx,
@@ -5201,7 +5194,7 @@ public:
   void flagInvalidCode() {}
   void visitExprPre(Expr *) {}
 
-  // Statement-related stubs — we just recurse through everything.
+  // Statement-related stubs -- we just recurse through everything.
   ShouldRecurse_t checkThrow(ThrowStmt *) { return ShouldRecurse; }
   ShouldRecurse_t checkDefer(DeferStmt *) { return ShouldRecurse; }
   ShouldRecurse_t checkTemporarilyEscapable(MakeTemporarilyEscapableExpr *) {
@@ -5213,26 +5206,64 @@ public:
   // Override the base class's checkDoCatch which decomposes into
   // checkExhaustiveDoBody/checkNonExhaustiveDoBody/checkCatch and returns
   // ShouldNotRecurse. For context effects we recurse uniformly through
-  // all statements — we don't care about try/catch structure. Returning
+  // all statements -- we don't care about try/catch structure. Returning
   // ShouldRecurse means walkToStmtPre continues into children normally.
   ShouldRecurse_t checkDoCatch(DoCatchStmt *) { return ShouldRecurse; }
 
   ShouldRecurse_t checkDoHandle(DoHandleStmt *S) {
-    // Push a new narrowing scope with the handled effects.
-    NarrowingScope.push_back({});
-    for (auto &clause : S->getHandleClauses()) {
-      auto type = clause.EffectType.getType();
-      if (auto *proto = extractProtocolDecl(type))
-        NarrowingScope.back().insert(proto);
+    if (S->hasPerformsClause()) {
+      // Save current state — the performs clause creates an isolated context.
+      auto savedCallerEffects = std::move(CallerEffects);
+      auto savedCallerEffectSet = std::move(CallerEffectSet);
+      auto savedNarrowingScope = std::move(NarrowingScope);
+
+      // Set CallerEffects to exactly the declared performs types.
+      CallerEffects.emplace();
+      CallerEffectSet.clear();
+      NarrowingScope.clear();
+
+      for (auto &typeLoc : S->getPerformsTypes()) {
+        auto type = typeLoc.getType();
+        if (auto *proto = extractProtocolDecl(type)) {
+          CallerEffects->push_back(proto);
+          CallerEffectSet.insert(proto);
+        }
+      }
+
+      // Walk the body — only declared performs effects are available.
+      S->getBody()->walk(*this);
+
+      // Restore saved state.
+      CallerEffects = std::move(savedCallerEffects);
+      CallerEffectSet = std::move(savedCallerEffectSet);
+      NarrowingScope = std::move(savedNarrowingScope);
+    } else {
+      // No performs clause — use handle clauses for narrowing (existing behavior).
+      NarrowingScope.push_back({});
+      for (auto &clause : S->getHandleClauses()) {
+        auto type = clause.EffectType.getType();
+        if (auto *proto = extractProtocolDecl(type))
+          NarrowingScope.back().insert(proto);
+      }
+
+      // Walk the body manually so that narrowing is in effect.
+      S->getBody()->walk(*this);
+
+      NarrowingScope.pop_back();
     }
 
-    // Walk the body manually so that narrowing is in effect.
-    S->getBody()->walk(*this);
-
-    NarrowingScope.pop_back();
+    // Walk handler expressions in the outer (pre-narrowing) context.
+    for (auto &clause : S->getHandleClauses()) {
+      if (clause.HandlerExpr)
+        clause.HandlerExpr->walk(*this);
+    }
     return ShouldNotRecurse;
   }
 
+  // Unlike checkApply which treats unannotated functions as unrestricted,
+  // perform always requires the effect to be explicitly available. perform
+  // is a direct effect invocation site (like throw), while calling a
+  // performs function just propagates the requirement.
   ShouldRecurse_t checkPerform(PerformExpr *E) {
     // Extract the effect protocol from the closure parameter type.
     auto *closure = dyn_cast_or_null<ClosureExpr>(E->getSubExpr());
@@ -5240,7 +5271,7 @@ public:
       return ShouldRecurse;
 
     auto *params = closure->getParameters();
-    if (!params || params->size() < 1)
+    if (!params || params->size() == 0)
       return ShouldRecurse;
 
     Type paramType = params->get(0)->getInterfaceType();
@@ -5285,7 +5316,7 @@ public:
       return ShouldRecurse;
 
     // If caller has no performs clause and no narrowing scopes, it's
-    // unrestricted — allow everything.
+    // unrestricted -- allow everything.
     if (!CallerEffects && NarrowingScope.empty())
       return ShouldRecurse;
 
@@ -5312,16 +5343,16 @@ public:
       for (auto &scope : NarrowingScope)
         for (auto *p : scope)
           available.push_back(p);
+      auto missingStr = formatEffectSet(missing);
+      auto availableStr = available.empty()
+          ? std::string("none") : formatEffectSet(available);
       Ctx.Diags.diagnose(E->getLoc(), diag::context_effect_not_allowed,
-                         formatEffectSet(missing),
-                         available.empty()
-                           ? StringRef("none")
-                           : formatEffectSet(available));
+                         StringRef(missingStr), StringRef(availableStr));
     }
 
     Ctx.Diags.diagnose(calleeDecl->getLoc(),
-                        diag::callee_declared_performs_here,
-                        calleeDecl->getName());
+                       diag::callee_declared_performs_here,
+                       calleeDecl->getName());
 
     return ShouldRecurse;
   }

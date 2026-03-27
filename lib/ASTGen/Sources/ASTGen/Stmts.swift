@@ -363,12 +363,22 @@ extension ASTGenVisitor {
         effectType: self.generate(type: clause.effectType)
       ))
     }
+    var performsTypes: [BridgedTypeRepr] = []
+    var performsLoc: SourceLoc = nil
+    if let performsClause = node.performsClause {
+      performsLoc = self.generateSourceLoc(performsClause.performsSpecifier)
+      for element in performsClause.types {
+        performsTypes.append(self.generate(type: element.type))
+      }
+    }
     return BridgedDoHandleStmt.createParsed(
       self.ctx,
       labelInfo: labelInfo,
       doLoc: self.generateSourceLoc(node.doKeyword),
       body: self.generate(codeBlock: node.body),
-      handleClauses: handleClauses.lazy.bridgedArray(in: self)
+      handleClauses: handleClauses.lazy.bridgedArray(in: self),
+      performsLoc: performsLoc,
+      performsTypes: performsTypes.lazy.bridgedArray(in: self)
     ).asStmt
   }
 
