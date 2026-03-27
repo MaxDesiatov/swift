@@ -2093,6 +2093,17 @@ namespace {
         extInfo = extInfo.withSendable();
       }
 
+      // Extract performed effects from contextual type.
+      if (auto contextualType =
+              CS.getContextualType(closure, /*forConstraint=*/false)) {
+        if (auto fnType = contextualType->getAs<AnyFunctionType>()) {
+          if (fnType->hasPerformedEffects()) {
+            extInfo =
+                extInfo.withPerformedEffects(fnType->getPerformedEffects());
+          }
+        }
+      }
+
       auto *fnTy = FunctionType::get(closureParams, resultTy, extInfo);
       return CS.replaceInferableTypesWithTypeVars(
           fnTy, CS.getConstraintLocator(closure))->castTo<FunctionType>();

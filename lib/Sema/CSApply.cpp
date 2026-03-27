@@ -7755,6 +7755,22 @@ Expr *ExprRewriter::coerceToType(Expr *expr, Type toType,
       }
     }
 
+    // If we have a ClosureExpr, then we can safely propagate performed effects
+    // to the closure without invalidating prior analysis.
+    fromEI = fromFunc->getExtInfo();
+    if (toFunc->hasPerformedEffects() && !fromFunc->hasPerformedEffects()) {
+      auto newFromFuncType = fromFunc->withExtInfo(
+          fromEI.withPerformedEffects(toFunc->getPerformedEffects()));
+      if (applyTypeToClosureExpr(cs, expr, newFromFuncType)) {
+        fromFunc = newFromFuncType->castTo<FunctionType>();
+
+        // Propagating 'performed effects' might have satisfied the entire
+        // conversion. If so, we're done, otherwise keep converting.
+        if (fromFunc->isEqual(toType))
+          return expr;
+      }
+    }
+
     // If we have a ClosureExpr, then we can safely propagate the lifetime
     // dependence info to the closure without invalidating prior analysis.
     fromEI = fromFunc->getExtInfo();

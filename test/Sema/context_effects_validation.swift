@@ -9,8 +9,8 @@ protocol Network: Effect {
     mutating func fetch(url: String) -> String
 }
 
-func fsOnly() performs(FileSystem) {} // expected-note {{declared here}}
-func netOnly() performs(Network) {} // expected-note {{declared here}}
+func fsOnly() performs(FileSystem) {} // expected-note 2 {{declared here}}
+func netOnly() performs(Network) {} // expected-note 5 {{declared here}}
 func fsBoth() performs(FileSystem, Network) {} // expected-note 3 {{declared here}}
 func pureFunc() performs(Never) {}
 func unannotated() {}
@@ -185,13 +185,43 @@ struct MockNet: Network {
 }
 
 // Closure body with performs is checked for context effects
-// NOTE: This requires constraint solver support for performedEffects
-// propagation to closures, which is Phase 1.4c work.
-// func testClosureBodyChecked() {
-//   let _: () performs(FileSystem) -> Void = {
-//     netOnly()
-//   }
-// }
+func testClosureBodyChecked() performs(FileSystem) {
+  let c: () performs(FileSystem) -> Void = {
+    netOnly()  // expected-error {{performs 'Network'}}
+  }
+  c()
+}
+
+// OK: closure body effects match
+func testClosureBodyOK() performs(FileSystem) {
+  let c: () performs(FileSystem) -> Void = {
+    fsOnly()  // OK
+  }
+  c()
+}
+
+// Closure with performs(Never) — no effects allowed in body
+func testClosureBodyNever() performs(FileSystem) {
+  let c: () performs(Never) -> Void = {
+    fsOnly()  // expected-error {{performs effects}}
+  }
+  c()
+}
+
+// Higher-order: closure passed as performs parameter
+func takesPerformsParam(_ f: () performs(FileSystem) -> Void) performs(FileSystem) { f() }
+func testHigherOrderClosure() performs(FileSystem) {
+  takesPerformsParam {
+    netOnly()  // expected-error {{performs 'Network'}}
+  }
+}
+
+// OK: higher-order with matching effects
+func testHigherOrderClosureOK() performs(FileSystem) {
+  takesPerformsParam {
+    fsOnly()  // OK
+  }
+}
 
 // Escaping closure allocates in performs(Never)
 func testEscapingClosureAllocates() performs(Never) {
@@ -257,6 +287,48 @@ func testSupersetCallerSubsetClosure(
   _ f: () performs(FileSystem) -> Void
 ) performs(FileSystem, Network) {
   f() // OK — caller has FileSystem + Network, closure only needs FileSystem
+}
+
+// --- Nested closure effects (validates save/restore) ---
+
+func testNestedClosureEffects() performs(FileSystem, Network) {
+  let outer: () performs(FileSystem, Network) -> Void = {
+    let inner: () performs(FileSystem) -> Void = {
+      netOnly()  // expected-error {{performs 'Network'}}
+    }
+    inner()
+    netOnly()  // OK — outer has FileSystem + Network, restore worked
+  }
+  outer()
+}
+
+// --- Multi-expression closure body ---
+
+func testClosureBodyMultiExpr() performs(FileSystem, Network) {
+  let c: () performs(FileSystem) -> Void = {
+    fsOnly()    // OK
+    netOnly()   // expected-error {{performs 'Network'}}
+    fsOnly()    // OK — checking continues after error
+  }
+  c()
+}
+
+// --- Closure with wider effects than enclosing function ---
+
+func testClosureWiderThanEnclosing() performs(FileSystem) {
+  let c: () performs(FileSystem, Network) -> Void = {
+    fsBoth()  // OK — closure has both FileSystem and Network
+  }
+  _ = c
+}
+
+// --- Escaping closure with performs in Never context ---
+
+func testEscapingClosureWithPerformsInNever() performs(Never) {
+  let _: () performs(FileSystem) -> Void = {
+    // expected-error @-1 {{escaping closure requires allocation, which is not available in the current effect context}}
+    fsOnly()  // OK within closure's performs(FileSystem) context
+  }
 }
 
 // --- Combined effect specifiers ---

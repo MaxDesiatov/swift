@@ -5180,9 +5180,10 @@ public:
   }
 
   ShouldRecurse_t checkClosure(ClosureExpr *E) {
+    auto closureTy = E->getType();
+
     // Check if escaping closure creation allocates in a restricted context.
     if (CallerEffects && CallerEffects->empty() && NarrowingScope.empty()) {
-      auto closureTy = E->getType();
       if (closureTy) {
         if (auto *fnTy = closureTy->getAs<FunctionType>()) {
           if (!fnTy->isNoEscape()) {
@@ -5193,8 +5194,32 @@ public:
       }
     }
 
-    // TODO(Phase 1.4c): re-add closure body checking once constraint solver
-    // propagates performedEffects to closure types.
+    // If the closure's function type has performed effects, walk its body
+    // with those effects as the context.
+    if (!closureTy)
+      return ShouldNotRecurse;
+    auto *fnTy = closureTy->getAs<FunctionType>();
+    if (!fnTy || !fnTy->hasPerformedEffects())
+      return ShouldNotRecurse;
+
+    auto savedCallerEffects = std::move(CallerEffects);
+    auto savedCallerEffectSet = std::move(CallerEffectSet);
+    auto savedNarrowingScope = std::move(NarrowingScope);
+    SWIFT_DEFER {
+      CallerEffects = std::move(savedCallerEffects);
+      CallerEffectSet = std::move(savedCallerEffectSet);
+      NarrowingScope = std::move(savedNarrowingScope);
+    };
+
+    auto closureEffects = extractEffectProtocols(fnTy->getPerformedEffects());
+    CallerEffects.emplace(std::move(closureEffects));
+    CallerEffectSet.clear();
+    NarrowingScope.clear();
+    CallerEffectSet.insert(CallerEffects->begin(), CallerEffects->end());
+
+    if (auto *body = E->getBody())
+      body->walk(*this);
+
     return ShouldNotRecurse;
   }
   ShouldRecurse_t checkAutoClosure(AutoClosureExpr *) {
