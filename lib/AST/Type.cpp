@@ -4310,6 +4310,17 @@ Type AnyFunctionType::getSendableDependentType() const {
   }
 }
 
+Type AnyFunctionType::getPerformedEffects() const {
+  switch (getKind()) {
+  case TypeKind::Function:
+    return cast<FunctionType>(this)->getPerformedEffects();
+  case TypeKind::GenericFunction:
+    return cast<GenericFunctionType>(this)->getPerformedEffects();
+  default:
+    llvm_unreachable("Illegal type kind for AnyFunctionType.");
+  }
+}
+
 bool AnyFunctionType::isSendable() const {
   ASSERT(!hasSendableDependentType() && "Query Sendable dependence first");
   return getExtInfo().isSendable();
@@ -4400,11 +4411,15 @@ AnyFunctionType::getCanonicalExtInfo(bool useClangFunctionType) const {
   if (sendableDependentType)
     sendableDependentType = sendableDependentType->getCanonicalType();
 
+  Type performedEffects = getPerformedEffects();
+  if (performedEffects)
+    performedEffects = performedEffects->getCanonicalType();
+
   return ExtInfo(bits,
                  useClangFunctionType ? getCanonicalClangTypeInfo()
                                       : ClangTypeInfo(),
-                 globalActor, thrownError, sendableDependentType,
-                 getLifetimeDependencies());
+                 globalActor, thrownError, performedEffects,
+                 sendableDependentType, getLifetimeDependencies());
 }
 
 bool AnyFunctionType::hasNonDerivableClangType() {

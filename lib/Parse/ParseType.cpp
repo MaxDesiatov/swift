@@ -480,11 +480,14 @@ ParserResult<TypeRepr> Parser::parseTypeScalar(
   SourceLoc asyncLoc;
   SourceLoc throwsLoc;
   TypeRepr *thrownTy = nullptr;
+  SourceLoc performsLoc;
+  SmallVector<TypeRepr *, 2> performedEffects;
   if (isAtFunctionTypeArrow()) {
     status |= parseEffectsSpecifiers(SourceLoc(),
                                      asyncLoc, /*reasync=*/nullptr,
                                      throwsLoc, /*rethrows=*/nullptr,
-                                     thrownTy);
+                                     thrownTy,
+                                     &performsLoc, &performedEffects);
   }
 
   // Handle type-function if we have an arrow.
@@ -495,7 +498,8 @@ ParserResult<TypeRepr> Parser::parseTypeScalar(
     parseEffectsSpecifiers(arrowLoc,
                            asyncLoc, /*reasync=*/nullptr,
                            throwsLoc, /*rethrows=*/nullptr,
-                           thrownTy);
+                           thrownTy,
+                           &performsLoc, &performedEffects);
 
     ParserResult<TypeRepr> SecondHalf =
         parseTypeScalar(diag::expected_type_function_result,
@@ -583,6 +587,9 @@ ParserResult<TypeRepr> Parser::parseTypeScalar(
                                          thrownTy, arrowLoc, SecondHalf.get(),
                                          patternGenerics, patternSubsTypes,
                                          invocationSubsTypes);
+    if (performsLoc.isValid())
+      cast<FunctionTypeRepr>(tyR)->setPerforms(
+          performsLoc, Context.AllocateCopy(performedEffects));
   } else if (auto firstGenerics = generics ? generics : patternGenerics) {
     // Only function types may be generic.
     auto brackets = firstGenerics->getSourceRange();
@@ -2051,16 +2058,28 @@ bool Parser::isAtFunctionTypeArrow() {
   if (Tok.is(tok::arrow))
     return true;
 
+  // Check for performs(...) as an effect specifier on function types.
+  if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
+      Tok.isContextualKeyword("performs") && peekToken().is(tok::l_paren)) {
+    BacktrackingScope backtrack(*this);
+    consumeToken();
+    skipSingle();
+    return isAtFunctionTypeArrow();
+  }
+
   if (isEffectsSpecifier(Tok)) {
     if (peekToken().is(tok::arrow))
       return true;
+    // throws(...) — skip the parens and continue looking.
     if (isThrowsEffectSpecifier(Tok) && peekToken().is(tok::l_paren)) {
       BacktrackingScope backtrack(*this);
       consumeToken();
       skipSingle();
       return isAtFunctionTypeArrow();
     }
-    if (isEffectsSpecifier(peekToken())) {
+    if (isEffectsSpecifier(peekToken()) ||
+        (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
+         peekToken().isContextualKeyword("performs"))) {
       BacktrackingScope backtrack(*this);
       consumeToken();
       return isAtFunctionTypeArrow();

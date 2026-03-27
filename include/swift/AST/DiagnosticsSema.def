@@ -5741,6 +5741,14 @@ ERROR(context_effect_perform_not_available,none,
 ERROR(context_effect_do_performs_unhandled,none,
       "effect %0 declared in 'performs' clause has no handler", (Identifier))
 
+ERROR(context_effect_escaping_closure_allocates,none,
+      "escaping closure requires allocation, which is not available in the "
+      "current effect context", ())
+
+ERROR(context_effect_call_unrestricted_fn_type,none,
+      "call to function without 'performs' clause is not allowed in a "
+      "restricted effect context; add 'performs(...)' to the function type", ())
+
 //------------------------------------------------------------------------------
 // MARK: Concurrency
 //------------------------------------------------------------------------------

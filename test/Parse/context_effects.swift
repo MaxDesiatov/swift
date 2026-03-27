@@ -29,3 +29,7 @@ do {
     let _ = readFile(at: "test.txt")
 } handle MockFS() as FileSystem
 
+// Function type with performs clause
+// CHECK: type_function
+let _: () performs(FileSystem) -> Void
+

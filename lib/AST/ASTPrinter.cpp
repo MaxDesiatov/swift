@@ -7430,6 +7430,14 @@ public:
           Printer << ")";
         }
       }
+
+      if (T->hasPerformedEffects()) {
+        Printer << " ";
+        Printer.printKeyword("performs", Options);
+        Printer << "(";
+        T->getPerformedEffects().print(Printer, Options);
+        Printer << ")";
+      }
     }
 
     Printer << " -> ";
@@ -7495,6 +7503,14 @@ public:
           thrownError->print(Printer, Options);
           Printer << ")";
         }
+      }
+
+      if (T->hasPerformedEffects()) {
+        Printer << " ";
+        Printer.printKeyword("performs", Options);
+        Printer << "(";
+        T->getPerformedEffects().print(Printer, Options);
+        Printer << ")";
       }
    }
 

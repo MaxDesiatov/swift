@@ -4823,7 +4823,8 @@ DynamicSelfType *DynamicSelfType::get(Type selfType, const ASTContext &ctx) {
 static RecursiveTypeProperties
 getFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
                                Type result, Type globalActor, Type thrownError,
-                               Type sendableDependentType) {
+                               Type sendableDependentType,
+                               Type performedEffects) {
   RecursiveTypeProperties properties;
   for (auto param : params)
     properties |= param.getPlainType()->getRecursiveProperties();
@@ -4832,6 +4833,8 @@ getFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
     properties |= globalActor->getRecursiveProperties();
   if (thrownError)
     properties |= thrownError->getRecursiveProperties();
+  if (performedEffects)
+    properties |= performedEffects->getRecursiveProperties();
   if (sendableDependentType) {
     ASSERT(sendableDependentType->hasTypeVariable());
     properties |= RecursiveTypeProperties::SolverAllocated;
@@ -4864,7 +4867,8 @@ isAnyFunctionTypeCanonical(ArrayRef<AnyFunctionType::Param> params,
 static RecursiveTypeProperties
 getGenericFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
                                       Type result, Type globalActor,
-                                      Type thrownError) {
+                                      Type thrownError,
+                                      Type performedEffects) {
   static_assert(RecursiveTypeProperties::BitWidth == 19,
                 "revisit this if you add new recursive type properties");
   RecursiveTypeProperties properties;
@@ -4888,6 +4892,7 @@ getGenericFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
   unionBits(result);
   unionBits(globalActor);
   unionBits(thrownError);
+  unionBits(performedEffects);
   return properties;
 }
 
@@ -5020,14 +5025,17 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
   Type thrownError;
   Type globalActor;
   Type sendableDependentType;
+  Type performedEffects;
   if (info.has_value()) {
     thrownError = info->getThrownError();
     globalActor = info->getGlobalActor();
     sendableDependentType = info->getSendableDependentType();
+    performedEffects = info->getPerformedEffects();
   }
 
   auto properties = getFunctionRecursiveProperties(
-      params, result, globalActor, thrownError, sendableDependentType);
+      params, result, globalActor, thrownError, sendableDependentType,
+      performedEffects);
   auto arena = getArena(properties);
 
   if (info.has_value()) {
@@ -5060,7 +5068,8 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
       info.has_value() && !info.value().getClangTypeInfo().empty();
 
   unsigned numTypes = (globalActor ? 1 : 0) + (thrownError ? 1 : 0) +
-                      (sendableDependentType ? 1 : 0);
+                      (sendableDependentType ? 1 : 0) +
+                      (performedEffects ? 1 : 0);
 
   bool hasLifetimeDependenceInfo =
       info.has_value() ? !info->getLifetimeDependencies().empty() : false;
@@ -5089,6 +5098,9 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
     isCanonical = false;
 
   if (globalActor && !globalActor->isCanonical())
+    isCanonical = false;
+
+  if (performedEffects && !performedEffects->isCanonical())
     isCanonical = false;
 
   auto funcTy = new (mem) FunctionType(params, result, info,
@@ -5131,6 +5143,10 @@ FunctionType::FunctionType(ArrayRef<AnyFunctionType::Param> params, Type output,
     }
     if (Type sendableDependentType = info->getSendableDependentType()) {
       getTrailingObjects<Type>()[typeIdx] = sendableDependentType;
+      typeIdx += 1;
+    }
+    if (Type performedEffects = info->getPerformedEffects()) {
+      getTrailingObjects<Type>()[typeIdx] = performedEffects;
       typeIdx += 1;
     }
     auto lifetimeDependenceInfo = info->getLifetimeDependencies();
@@ -5197,9 +5213,11 @@ GenericFunctionType *GenericFunctionType::get(GenericSignature sig,
 
   Type thrownError;
   Type globalActor;
+  Type performedEffects;
   if (info.has_value()) {
     thrownError = info->getThrownError();
     globalActor = info->getGlobalActor();
+    performedEffects = info->getPerformedEffects();
 
     // Generic functions can't currently have Sendable dependence.
     ASSERT(!info->getSendableDependentType());
@@ -5219,7 +5237,11 @@ GenericFunctionType *GenericFunctionType::get(GenericSignature sig,
   if (globalActor && !sig->isReducedType(globalActor))
     isCanonical = false;
 
-  unsigned numTypes = (globalActor ? 1 : 0) + (thrownError ? 1 : 0);
+  if (performedEffects && !performedEffects->isCanonical())
+    isCanonical = false;
+
+  unsigned numTypes = (globalActor ? 1 : 0) + (thrownError ? 1 : 0) +
+                      (performedEffects ? 1 : 0);
   bool hasLifetimeDependenceInfo =
       info.has_value() ? !info->getLifetimeDependencies().empty() : false;
   auto numLifetimeDependencies =
@@ -5232,7 +5254,7 @@ GenericFunctionType *GenericFunctionType::get(GenericSignature sig,
   void *mem = ctx.Allocate(allocSize, alignof(GenericFunctionType));
 
   auto properties = getGenericFunctionRecursiveProperties(
-      params, result, globalActor, thrownError);
+      params, result, globalActor, thrownError, performedEffects);
   auto funcTy = new (mem) GenericFunctionType(sig, params, result, info,
                                               isCanonical ? &ctx : nullptr,
                                               properties);
@@ -5252,13 +5274,19 @@ GenericFunctionType::GenericFunctionType(
                           getTrailingObjects<AnyFunctionType::Param>());
   assert(isConsistentAboutIsolation(info, params));
   if (info) {
-    unsigned thrownErrorIndex = 0;
+    unsigned typeIdx = 0;
     if (Type globalActor = info->getGlobalActor()) {
-      getTrailingObjects<Type>()[0] = globalActor;
-      ++thrownErrorIndex;
+      getTrailingObjects<Type>()[typeIdx] = globalActor;
+      ++typeIdx;
     }
-    if (Type thrownError = info->getThrownError())
-      getTrailingObjects<Type>()[thrownErrorIndex] = thrownError;
+    if (Type thrownError = info->getThrownError()) {
+      getTrailingObjects<Type>()[typeIdx] = thrownError;
+      ++typeIdx;
+    }
+    if (Type performedEffects = info->getPerformedEffects()) {
+      getTrailingObjects<Type>()[typeIdx] = performedEffects;
+      ++typeIdx;
+    }
 
     auto lifetimeDependenceInfo = info->getLifetimeDependencies();
     if (!lifetimeDependenceInfo.empty()) {

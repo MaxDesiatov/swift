@@ -35,6 +35,7 @@
 #include "swift/AST/TypeCheckRequests.h"
 #include "swift/AST/UnsafeUse.h"
 #include "swift/Basic/Assertions.h"
+#include "swift/Basic/Defer.h"
 
 using namespace swift;
 
@@ -5026,6 +5027,31 @@ static ProtocolDecl *extractProtocolDecl(Type type) {
   return nullptr;
 }
 
+/// Decompose a performed-effects type into individual protocol decls.
+/// For a single protocol type, returns that protocol.
+/// For a ProtocolCompositionType, returns each member protocol.
+/// For Never, returns empty.
+static SmallVector<ProtocolDecl *, 4>
+extractEffectProtocols(Type performedEffects) {
+  SmallVector<ProtocolDecl *, 4> result;
+  if (!performedEffects || performedEffects->isNever())
+    return result;
+
+  // Unwrap ExistentialType if present.
+  if (auto *et = performedEffects->getAs<ExistentialType>())
+    performedEffects = et->getConstraintType();
+
+  if (auto *proto = extractProtocolDecl(performedEffects)) {
+    result.push_back(proto);
+  } else if (auto *comp = performedEffects->getAs<ProtocolCompositionType>()) {
+    for (auto member : comp->getMembers()) {
+      if (auto *proto = extractProtocolDecl(member))
+        result.push_back(proto);
+    }
+  }
+  return result;
+}
+
 /// Resolve the types in a function's performs clause to ProtocolDecl values.
 /// Returns std::nullopt if the function has no performs clause (unrestricted).
 /// Returns an empty vector for performs(Never).
@@ -5153,7 +5179,22 @@ public:
       CallerEffectSet.insert(CallerEffects->begin(), CallerEffects->end());
   }
 
-  ShouldRecurse_t checkClosure(ClosureExpr *) {
+  ShouldRecurse_t checkClosure(ClosureExpr *E) {
+    // Check if escaping closure creation allocates in a restricted context.
+    if (CallerEffects && CallerEffects->empty() && NarrowingScope.empty()) {
+      auto closureTy = E->getType();
+      if (closureTy) {
+        if (auto *fnTy = closureTy->getAs<FunctionType>()) {
+          if (!fnTy->isNoEscape()) {
+            Ctx.Diags.diagnose(E->getLoc(),
+                               diag::context_effect_escaping_closure_allocates);
+          }
+        }
+      }
+    }
+
+    // TODO(Phase 1.4c): re-add closure body checking once constraint solver
+    // propagates performedEffects to closure types.
     return ShouldNotRecurse;
   }
   ShouldRecurse_t checkAutoClosure(AutoClosureExpr *) {
@@ -5216,6 +5257,11 @@ public:
       auto savedCallerEffects = std::move(CallerEffects);
       auto savedCallerEffectSet = std::move(CallerEffectSet);
       auto savedNarrowingScope = std::move(NarrowingScope);
+      SWIFT_DEFER {
+        CallerEffects = std::move(savedCallerEffects);
+        CallerEffectSet = std::move(savedCallerEffectSet);
+        NarrowingScope = std::move(savedNarrowingScope);
+      };
 
       // Set CallerEffects to exactly the declared performs types.
       CallerEffects.emplace();
@@ -5232,11 +5278,6 @@ public:
 
       // Walk the body — only declared performs effects are available.
       S->getBody()->walk(*this);
-
-      // Restore saved state.
-      CallerEffects = std::move(savedCallerEffects);
-      CallerEffectSet = std::move(savedCallerEffectSet);
-      NarrowingScope = std::move(savedNarrowingScope);
     } else {
       // No performs clause — use handle clauses for narrowing (existing behavior).
       NarrowingScope.push_back({});
@@ -5293,6 +5334,31 @@ public:
     return ShouldRecurse;
   }
 
+  /// Emit a diagnostic for missing effect protocols at the given location.
+  void diagnoseMissingEffects(SourceLoc loc,
+                              ArrayRef<ProtocolDecl *> missing,
+                              AbstractFunctionDecl *calleeDecl = nullptr) {
+    if (CallerEffects && CallerEffects->empty() && NarrowingScope.empty()) {
+      Ctx.Diags.diagnose(loc, diag::context_effect_in_performs_never);
+    } else {
+      SmallVector<ProtocolDecl *, 4> available;
+      if (CallerEffects)
+        available.append(CallerEffects->begin(), CallerEffects->end());
+      for (auto &scope : NarrowingScope)
+        for (auto *p : scope)
+          available.push_back(p);
+      auto missingStr = formatEffectSet(missing);
+      auto availableStr = available.empty()
+          ? std::string("none") : formatEffectSet(available);
+      Ctx.Diags.diagnose(loc, diag::context_effect_not_allowed,
+                         StringRef(missingStr), StringRef(availableStr));
+    }
+    if (calleeDecl)
+      Ctx.Diags.diagnose(calleeDecl->getLoc(),
+                         diag::callee_declared_performs_here,
+                         calleeDecl->getName());
+  }
+
   ShouldRecurse_t checkApply(ApplyExpr *E) {
     if (!E->getType() || E->getType()->hasError())
       return ShouldNotRecurse;
@@ -5304,8 +5370,10 @@ public:
       return ShouldRecurse;
 
     auto fnRef = AbstractFunction::getAppliedFn(E);
-    if (fnRef.getKind() != AbstractFunction::Kind::Function)
-      return ShouldRecurse;
+    if (fnRef.getKind() != AbstractFunction::Kind::Function) {
+      // Check function-type callees (e.g., closure parameters).
+      return checkApplyFunctionType(E);
+    }
 
     auto *calleeDecl = fnRef.getFunction();
     if (!calleeDecl->hasPerforms())
@@ -5330,29 +5398,48 @@ public:
     if (missing.empty())
       return ShouldRecurse;
 
-    // Emit diagnostic.
-    if (CallerEffects && CallerEffects->empty() && NarrowingScope.empty()) {
-      // performs(Never) context with no narrowing scopes.
+    diagnoseMissingEffects(E->getLoc(), missing, calleeDecl);
+
+    return ShouldRecurse;
+  }
+
+  /// Check performed effects on a call where the callee is a function type
+  /// (not an AbstractFunctionDecl).
+  ShouldRecurse_t checkApplyFunctionType(ApplyExpr *E) {
+    // If caller has no performs clause and no narrowing scopes, it's
+    // unrestricted -- allow everything.
+    if (!CallerEffects && NarrowingScope.empty())
+      return ShouldRecurse;
+
+    Type calleeFnType = E->getFn()->getType();
+    if (!calleeFnType)
+      return ShouldRecurse;
+
+    auto *fnType = calleeFnType->getAs<AnyFunctionType>();
+    if (!fnType)
+      return ShouldRecurse;
+
+    if (!fnType->hasPerformedEffects()) {
+      // Function type without performs clause in a restricted context.
       Ctx.Diags.diagnose(E->getLoc(),
-                         diag::context_effect_in_performs_never);
-    } else {
-      // Collect all available effects for the diagnostic message.
-      SmallVector<ProtocolDecl *, 4> available;
-      if (CallerEffects)
-        available.append(CallerEffects->begin(), CallerEffects->end());
-      for (auto &scope : NarrowingScope)
-        for (auto *p : scope)
-          available.push_back(p);
-      auto missingStr = formatEffectSet(missing);
-      auto availableStr = available.empty()
-          ? std::string("none") : formatEffectSet(available);
-      Ctx.Diags.diagnose(E->getLoc(), diag::context_effect_not_allowed,
-                         StringRef(missingStr), StringRef(availableStr));
+                         diag::context_effect_call_unrestricted_fn_type);
+      return ShouldRecurse;
     }
 
-    Ctx.Diags.diagnose(calleeDecl->getLoc(),
-                       diag::callee_declared_performs_here,
-                       calleeDecl->getName());
+    auto calleeEffects = extractEffectProtocols(fnType->getPerformedEffects());
+    if (calleeEffects.empty())
+      return ShouldRecurse;
+
+    SmallVector<ProtocolDecl *, 4> missing;
+    for (auto *calleeEffect : calleeEffects) {
+      if (!isEffectAvailable(calleeEffect))
+        missing.push_back(calleeEffect);
+    }
+
+    if (missing.empty())
+      return ShouldRecurse;
+
+    diagnoseMissingEffects(E->getLoc(), missing);
 
     return ShouldRecurse;
   }

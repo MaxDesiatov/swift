@@ -436,7 +436,7 @@ protected:
     HasCachedType : 1
   );
 
-  SWIFT_INLINE_BITFIELD_FULL(AnyFunctionType, TypeBase, NumAFTExtInfoBits+1+1+1+1+1+16,
+  SWIFT_INLINE_BITFIELD_FULL(AnyFunctionType, TypeBase, NumAFTExtInfoBits+1+1+1+1+1+1+16,
     /// Extra information which affects how the function is called, like
     /// regparm and the calling convention.
     ExtInfoBits : NumAFTExtInfoBits,
@@ -444,7 +444,8 @@ protected:
     HasClangTypeInfo : 1,
     HasThrownError : 1,
     HasLifetimeDependencies : 1,
-    HasSendableDependence : 1
+    HasSendableDependence : 1,
+    HasPerformedEffects : 1
   );
 
   SWIFT_INLINE_BITFIELD_FULL(ArchetypeType, TypeBase, 1+1+16,
@@ -3715,6 +3716,8 @@ protected:
           !Info.value().getLifetimeDependencies().empty();
       Bits.AnyFunctionType.HasSendableDependence =
           !Info->getSendableDependentType().isNull();
+      Bits.AnyFunctionType.HasPerformedEffects =
+          !Info->getPerformedEffects().isNull();
       // The use of both assert() and static_assert() is intentional.
       assert(Bits.AnyFunctionType.ExtInfoBits == Info.value().getBits() &&
              "Bits were dropped!");
@@ -3728,6 +3731,7 @@ protected:
       Bits.AnyFunctionType.HasThrownError = false;
       Bits.AnyFunctionType.HasLifetimeDependencies = false;
       Bits.AnyFunctionType.HasSendableDependence = false;
+      Bits.AnyFunctionType.HasPerformedEffects = false;
     }
     this->NumParams = NumParams;
     assert(this->NumParams == NumParams && "Params dropped!");
@@ -3788,6 +3792,10 @@ public:
     return Bits.AnyFunctionType.HasSendableDependence;
   }
 
+  bool hasPerformedEffects() const {
+    return Bits.AnyFunctionType.HasPerformedEffects;
+  }
+
   bool hasLifetimeDependencies() const {
     return Bits.AnyFunctionType.HasLifetimeDependencies;
   }
@@ -3801,6 +3809,7 @@ public:
 
   Type getGlobalActor() const;
   Type getThrownError() const;
+  Type getPerformedEffects() const;
 
   /// A dependent type that determines whether the function is @Sendable. This
   /// is only used within the constraint system, and will contain type
@@ -3858,7 +3867,7 @@ public:
   ExtInfo getExtInfo() const {
     assert(hasExtInfo());
     return ExtInfo(Bits.AnyFunctionType.ExtInfoBits, getClangTypeInfo(),
-                   getGlobalActor(), getThrownError(),
+                   getGlobalActor(), getThrownError(), getPerformedEffects(),
                    getSendableDependentType(), getLifetimeDependencies());
   }
 
@@ -4108,7 +4117,8 @@ class FunctionType final
   }
 
   size_t numTrailingObjects(OverloadToken<Type>) const {
-    return hasGlobalActor() + hasThrownError() + hasSendableDependentType();
+    return hasGlobalActor() + hasThrownError() + hasSendableDependentType() +
+           hasPerformedEffects();
   }
 
   size_t numTrailingObjects(OverloadToken<size_t>) const {
@@ -4157,6 +4167,13 @@ public:
     if (!hasSendableDependentType())
       return Type();
     return getTrailingObjects<Type>()[hasGlobalActor() + hasThrownError()];
+  }
+
+  Type getPerformedEffects() const {
+    if (!hasPerformedEffects())
+      return Type();
+    return getTrailingObjects<Type>()[hasGlobalActor() + hasThrownError() +
+                                      hasSendableDependentType()];
   }
 
   inline size_t getNumLifetimeDependencies() const {
@@ -4294,7 +4311,7 @@ class GenericFunctionType final
   }
                                     
   size_t numTrailingObjects(OverloadToken<Type>) const {
-    return hasGlobalActor() + hasThrownError();
+    return hasGlobalActor() + hasThrownError() + hasPerformedEffects();
   }
 
   size_t numTrailingObjects(OverloadToken<size_t>) const {
@@ -4331,6 +4348,12 @@ public:
     if (!hasThrownError())
       return Type();
     return getTrailingObjects<Type>()[hasGlobalActor()];
+  }
+
+  Type getPerformedEffects() const {
+    if (!hasPerformedEffects())
+      return Type();
+    return getTrailingObjects<Type>()[hasGlobalActor() + hasThrownError()];
   }
 
   inline size_t getNumLifetimeDependencies() const {

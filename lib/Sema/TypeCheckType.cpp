@@ -4738,6 +4738,63 @@ NeverNullType TypeResolver::resolveASTFunctionType(
   bool hasSendingResult =
       isa_and_nonnull<SendingTypeRepr>(repr->getResultTypeRepr());
 
+  // Resolve performed effects.
+  Type performedEffects;
+  if (repr->hasPerforms()) {
+    SmallVector<Type, 2> effectTypes;
+    bool sawNever = false;
+
+    auto *effectProto = ctx.getProtocol(KnownProtocolKind::Effect);
+
+    for (auto *effectRepr : repr->getPerformedEffectReprs()) {
+      auto effectOptions = options.withoutContext();
+      auto ty = resolveType(effectRepr, effectOptions);
+      if (ty->hasError()) continue;
+
+      if (ty->isNever()) { sawNever = true; continue; }
+
+      // Validate: must be a protocol conforming to Effect.
+      if (inStage(TypeResolutionStage::Interface) &&
+          !options.contains(TypeResolutionFlags::SilenceDiagnostics)) {
+        ProtocolDecl *protoDecl = nullptr;
+        if (auto *pt = ty->getAs<ProtocolType>())
+          protoDecl = pt->getDecl();
+        else if (auto *et = ty->getAs<ExistentialType>())
+          if (auto *pt2 = et->getConstraintType()->getAs<ProtocolType>())
+            protoDecl = pt2->getDecl();
+
+        if (!protoDecl ||
+            (effectProto && protoDecl != effectProto &&
+             !protoDecl->inheritsFrom(effectProto))) {
+          diagnoseInvalid(effectRepr, effectRepr->getLoc(),
+                          diag::context_effect_type_not_effect_protocol, ty);
+          continue;
+        }
+      }
+
+      // Unwrap ExistentialType for ProtocolCompositionType::get compatibility.
+      if (auto *et = ty->getAs<ExistentialType>())
+        ty = et->getConstraintType();
+      effectTypes.push_back(ty);
+    }
+
+    if (sawNever && !effectTypes.empty()) {
+      diagnose(repr->getPerformsLoc(),
+               diag::context_effect_never_with_other_types);
+      effectTypes.clear();
+    }
+
+    if (effectTypes.size() == 1) {
+      performedEffects = effectTypes[0];
+    } else if (effectTypes.size() > 1) {
+      performedEffects = ProtocolCompositionType::get(
+          ctx, effectTypes, /*Inverses=*/{},
+          /*HasExplicitAnyObject=*/false);
+    } else if (sawNever) {
+      performedEffects = ctx.getNeverType();
+    }
+  }
+
   // TODO: maybe make this the place that claims @escaping.
   bool noescape = isDefaultNoEscapeContext(parentOptions);
 
@@ -4755,6 +4812,7 @@ NeverNullType TypeResolver::resolveASTFunctionType(
                      .withSendable(sendable)
                      .withAsync(repr->isAsync())
                      .withClangFunctionType(clangFnType)
+                     .withPerformedEffects(performedEffects)
                      .build();
 
   // SIL uses polymorphic function types to resolve overloaded member functions.

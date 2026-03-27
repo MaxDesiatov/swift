@@ -268,11 +268,17 @@ BridgedCompileTimeLiteralTypeRepr_createParsed(BridgedASTContext cContext,
 BridgedFunctionTypeRepr BridgedFunctionTypeRepr_createParsed(
     BridgedASTContext cContext, BridgedTypeRepr argsTy, SourceLoc asyncLoc,
     SourceLoc throwsLoc, BridgedNullableTypeRepr thrownType, SourceLoc arrowLoc,
-    BridgedTypeRepr resultType) {
+    BridgedTypeRepr resultType,
+    SourceLoc performsLoc, BridgedArrayRef performsTypes) {
   ASTContext &context = cContext.unbridged();
-  return new (context) FunctionTypeRepr(
+  auto *repr = new (context) FunctionTypeRepr(
       nullptr, cast<TupleTypeRepr>(argsTy.unbridged()), asyncLoc, throwsLoc,
       thrownType.unbridged(), arrowLoc, resultType.unbridged());
+  if (performsLoc.isValid()) {
+    repr->setPerforms(performsLoc,
+                      context.AllocateCopy(performsTypes.unbridged<TypeRepr *>()));
+  }
+  return repr;
 }
 
 BridgedNamedOpaqueReturnTypeRepr BridgedNamedOpaqueReturnTypeRepr_createParsed(
