@@ -263,7 +263,12 @@ extension ASTGenVisitor {
   }
 
   func generate(functionType node: FunctionTypeSyntax) -> BridgedFunctionTypeRepr {
-    .createParsed(
+    let performsClause = node.effectSpecifiers?.performsClause
+    let performsTypes = performsClause?.types.lazy.map {
+      self.generate(type: $0.type)
+    }
+
+    return .createParsed(
       self.ctx,
       // FIXME: Why does `FunctionTypeSyntax` not have a `TupleTypeSyntax` child?
       argsType: BridgedTupleTypeRepr.createParsed(
@@ -276,7 +281,9 @@ extension ASTGenVisitor {
       throwsLoc: self.generateSourceLoc(node.effectSpecifiers?.throwsClause?.throwsSpecifier),
       thrownType: self.generate(type: node.effectSpecifiers?.thrownError),
       arrowLoc: self.generateSourceLoc(node.returnClause.arrow),
-      resultType: generate(type: node.returnClause.type)
+      resultType: generate(type: node.returnClause.type),
+      performsLoc: self.generateSourceLoc(performsClause?.performsSpecifier),
+      performsTypes: performsTypes.bridgedArray(in: self)
     )
   }
 

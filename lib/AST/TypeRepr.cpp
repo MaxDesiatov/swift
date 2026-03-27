@@ -470,6 +470,15 @@ void FunctionTypeRepr::printImpl(ASTPrinter &Printer,
       Printer << ")";
     }
   }
+  if (hasPerforms()) {
+    Printer << " ";
+    Printer.printKeyword("performs", Opts);
+    Printer << "(";
+    interleave(PerformedEffectReprs,
+               [&](TypeRepr *tr) { printTypeRepr(tr, Printer, Opts); },
+               [&] { Printer << ", "; });
+    Printer << ")";
+  }
   Printer << " -> ";
   Printer.callPrintStructurePre(PrintStructureKind::FunctionReturnType);
 

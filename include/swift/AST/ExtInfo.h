@@ -576,6 +576,7 @@ class ASTExtInfoBuilder {
 
   Type globalActor;
   Type thrownError;
+  Type performedEffects;
 
   /// A dependent type that determines whether the function is @Sendable.
   /// Only used within the constraint system, and must contain type variables,
@@ -588,10 +589,12 @@ class ASTExtInfoBuilder {
 
   ASTExtInfoBuilder(unsigned bits, ClangTypeInfo clangTypeInfo,
                     Type globalActor, Type thrownError,
+                    Type performedEffects,
                     Type sendableDependentType,
                     ArrayRef<LifetimeDependenceInfo> lifetimeDependencies)
       : bits(bits), clangTypeInfo(clangTypeInfo), globalActor(globalActor),
-        thrownError(thrownError), sendableDependentType(sendableDependentType),
+        thrownError(thrownError), performedEffects(performedEffects),
+        sendableDependentType(sendableDependentType),
         lifetimeDependencies(lifetimeDependencies) {
     assert(isThrowing() || !thrownError);
     assert(hasGlobalActorFromBits(bits) == !globalActor.isNull());
@@ -629,6 +632,7 @@ public:
                 (unsigned(isolation.getKind()) << IsolationMaskOffset) |
                 (sendingResult ? SendingResultMask : 0),
             ClangTypeInfo(type), isolation.getOpaqueType(), thrownError,
+            /*performedEffects*/ Type(),
             /*sendableDependentType*/ Type(), lifetimeDependencies) {}
 
   void checkInvariants() const;
@@ -670,6 +674,8 @@ public:
 
   Type getGlobalActor() const { return globalActor; }
   Type getThrownError() const { return thrownError; }
+  Type getPerformedEffects() const { return performedEffects; }
+  bool hasPerformedEffects() const { return !performedEffects.isNull(); }
 
   /// A dependent type that determines whether the function is @Sendable. This
   /// is only used within the constraint system, and will contain type
@@ -735,41 +741,54 @@ public:
     return ASTExtInfoBuilder(
         (bits & ~RepresentationMask) | (unsigned)rep,
         shouldStoreClangType(rep) ? clangTypeInfo : ClangTypeInfo(),
-        globalActor, thrownError, sendableDependentType, lifetimeDependencies);
+        globalActor, thrownError, performedEffects, sendableDependentType,
+        lifetimeDependencies);
   }
   [[nodiscard]]
   ASTExtInfoBuilder withNoEscape(bool noEscape = true) const {
     return ASTExtInfoBuilder(noEscape ? (bits | NoEscapeMask)
                                       : (bits & ~NoEscapeMask),
                              clangTypeInfo, globalActor, thrownError,
-                             sendableDependentType, lifetimeDependencies);
+                             performedEffects, sendableDependentType,
+                             lifetimeDependencies);
   }
   [[nodiscard]]
   ASTExtInfoBuilder withSendable(bool concurrent = true) const {
     return ASTExtInfoBuilder(concurrent ? (bits | SendableMask)
                                         : (bits & ~SendableMask),
                              clangTypeInfo, globalActor, thrownError,
-                             sendableDependentType, lifetimeDependencies);
+                             performedEffects, sendableDependentType,
+                             lifetimeDependencies);
   }
   [[nodiscard]]
   ASTExtInfoBuilder withAsync(bool async = true) const {
     return ASTExtInfoBuilder(async ? (bits | AsyncMask) : (bits & ~AsyncMask),
                              clangTypeInfo, globalActor, thrownError,
-                             sendableDependentType, lifetimeDependencies);
+                             performedEffects, sendableDependentType,
+                             lifetimeDependencies);
   }
   [[nodiscard]]
   ASTExtInfoBuilder withThrows(bool throws, Type thrownError) const {
     assert(throws || !thrownError);
     return ASTExtInfoBuilder(
         throws ? (bits | ThrowsMask) : (bits & ~ThrowsMask), clangTypeInfo,
-        globalActor, thrownError, sendableDependentType, lifetimeDependencies);
+        globalActor, thrownError, performedEffects, sendableDependentType,
+        lifetimeDependencies);
   }
 
   [[nodiscard]]
   ASTExtInfoBuilder
   withSendableDependentType(Type sendableDependentType) const {
     return ASTExtInfoBuilder(bits, clangTypeInfo, globalActor, thrownError,
-                             sendableDependentType, lifetimeDependencies);
+                             performedEffects, sendableDependentType,
+                             lifetimeDependencies);
+  }
+
+  [[nodiscard]]
+  ASTExtInfoBuilder withPerformedEffects(Type performedEffects) const {
+    return ASTExtInfoBuilder(bits, clangTypeInfo, globalActor, thrownError,
+                             performedEffects, sendableDependentType,
+                             lifetimeDependencies);
   }
 
   [[nodiscard]]
@@ -781,7 +800,8 @@ public:
     return ASTExtInfoBuilder(sending ? (bits | SendingResultMask)
                                      : (bits & ~SendingResultMask),
                              clangTypeInfo, globalActor, thrownError,
-                             sendableDependentType, lifetimeDependencies);
+                             performedEffects, sendableDependentType,
+                             lifetimeDependencies);
   }
 
   [[nodiscard]]
@@ -790,14 +810,14 @@ public:
     return ASTExtInfoBuilder(
         (bits & ~DifferentiabilityMask) |
             ((unsigned)differentiability << DifferentiabilityMaskOffset),
-        clangTypeInfo, globalActor, thrownError, sendableDependentType,
-        lifetimeDependencies);
+        clangTypeInfo, globalActor, thrownError, performedEffects,
+        sendableDependentType, lifetimeDependencies);
   }
   [[nodiscard]]
   ASTExtInfoBuilder withClangFunctionType(const clang::Type *type) const {
     return ASTExtInfoBuilder(bits, ClangTypeInfo(type), globalActor,
-                             thrownError, sendableDependentType,
-                             lifetimeDependencies);
+                             thrownError, performedEffects,
+                             sendableDependentType, lifetimeDependencies);
   }
 
   /// Put a SIL representation in the ExtInfo.
@@ -811,7 +831,8 @@ public:
     return ASTExtInfoBuilder(
         (bits & ~RepresentationMask) | (unsigned)rep,
         shouldStoreClangType(rep) ? clangTypeInfo : ClangTypeInfo(),
-        globalActor, thrownError, sendableDependentType, lifetimeDependencies);
+        globalActor, thrownError, performedEffects, sendableDependentType,
+        lifetimeDependencies);
   }
 
   /// \p lifetimeDependencies should be arena allocated and not a temporary
@@ -820,7 +841,8 @@ public:
   [[nodiscard]] ASTExtInfoBuilder withLifetimeDependencies(
       llvm::ArrayRef<LifetimeDependenceInfo> lifetimeDependencies) const {
     return ASTExtInfoBuilder(bits, clangTypeInfo, globalActor, thrownError,
-                             sendableDependentType, lifetimeDependencies);
+                             performedEffects, sendableDependentType,
+                             lifetimeDependencies);
   }
 
   [[nodiscard]] ASTExtInfoBuilder withLifetimeDependencies(
@@ -833,13 +855,13 @@ public:
         (bits & ~IsolationMask) |
             (unsigned(isolation.getKind()) << IsolationMaskOffset),
         clangTypeInfo, isolation.getOpaqueType(), thrownError,
-        sendableDependentType, lifetimeDependencies);
+        performedEffects, sendableDependentType, lifetimeDependencies);
   }
 
   [[nodiscard]] ASTExtInfoBuilder withHasInOutResult() const {
     return ASTExtInfoBuilder((bits | InOutResultMask), clangTypeInfo,
-                             globalActor, thrownError, sendableDependentType,
-                             lifetimeDependencies);
+                             globalActor, thrownError, performedEffects,
+                             sendableDependentType, lifetimeDependencies);
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
@@ -847,6 +869,7 @@ public:
     ID.AddPointer(clangTypeInfo.getType());
     ID.AddPointer(globalActor.getPointer());
     ID.AddPointer(thrownError.getPointer());
+    ID.AddPointer(performedEffects.getPointer());
     ID.AddPointer(sendableDependentType.getPointer());
     for (auto info : lifetimeDependencies) {
       info.Profile(ID);
@@ -858,6 +881,7 @@ public:
            (useClangTypes ? (clangTypeInfo == other.clangTypeInfo) : true) &&
            globalActor.getPointer() == other.globalActor.getPointer() &&
            thrownError.getPointer() == other.thrownError.getPointer() &&
+           performedEffects.getPointer() == other.performedEffects.getPointer() &&
            lifetimeDependencies == other.lifetimeDependencies;
   }
 }; // end ASTExtInfoBuilder
@@ -880,10 +904,12 @@ class ASTExtInfo {
   ASTExtInfo(ASTExtInfoBuilder builder) : builder(builder) {}
 
   ASTExtInfo(unsigned bits, ClangTypeInfo clangTypeInfo, Type globalActor,
-             Type thrownError, Type sendableDependentType,
+             Type thrownError, Type performedEffects,
+             Type sendableDependentType,
              llvm::ArrayRef<LifetimeDependenceInfo> lifetimeDependenceInfo)
       : builder(bits, clangTypeInfo, globalActor, thrownError,
-                sendableDependentType, lifetimeDependenceInfo) {
+                performedEffects, sendableDependentType,
+                lifetimeDependenceInfo) {
     builder.checkInvariants();
   };
 
@@ -931,6 +957,8 @@ public:
 
   Type getGlobalActor() const { return builder.getGlobalActor(); }
   Type getThrownError() const { return builder.getThrownError(); }
+  Type getPerformedEffects() const { return builder.getPerformedEffects(); }
+  bool hasPerformedEffects() const { return builder.hasPerformedEffects(); }
 
   /// A dependent type that determines whether the function is @Sendable. This
   /// is only used within the constraint system, and will contain type
@@ -998,6 +1026,11 @@ public:
   [[nodiscard]]
   ASTExtInfo withSendableDependentType(Type sendableDependentType) const {
     return builder.withSendableDependentType(sendableDependentType).build();
+  }
+
+  [[nodiscard]]
+  ASTExtInfo withPerformedEffects(Type performedEffects) const {
+    return builder.withPerformedEffects(performedEffects).build();
   }
 
   [[nodiscard]] ASTExtInfo withSendingResult(bool sending = true) const {
