@@ -59,3 +59,27 @@ func testPerformReturnType() performs(FileSystem) {
 // Requires performs on AnyFunctionType, closure body validation, and call-site checking.
 // For now, closures are opaque effect boundaries — perform inside a closure
 // is not checked, and calling a closure doesn't propagate effects.
+
+// OK: 'some' in perform closure param resolves to existential type
+func testPerformSomeOK() performs(FileSystem) -> String {
+  perform { (fs: inout some FileSystem) in
+    fs.readFile(at: "test.txt")
+  }
+}
+
+// OK: 'some' in perform closure inside do...handle
+func testPerformSomeNarrowed() {
+  do {
+    let content = perform { (fs: inout some FileSystem) in
+      fs.readFile(at: "test.txt")
+    }
+    print("Narrowed read:", content)
+  } handle MockFS() as FileSystem
+}
+
+// ERROR: 'some' perform with wrong effect
+func testPerformSomeWrongEffect() performs(Network) {
+  perform { (fs: inout some FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
+    print(fs.readFile(at: "test.txt"))
+  }
+}
