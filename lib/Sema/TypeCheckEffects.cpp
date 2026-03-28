@@ -33,6 +33,7 @@
 #include "swift/AST/PrettyStackTrace.h"
 #include "swift/AST/ProtocolConformance.h"
 #include "swift/AST/TypeCheckRequests.h"
+#include "swift/AST/TypeRepr.h"
 #include "swift/AST/UnsafeUse.h"
 #include "swift/Basic/Assertions.h"
 #include "swift/Basic/Defer.h"
@@ -5151,6 +5152,9 @@ class CheckContextEffectsCoverage
   /// Stack of narrowing scopes introduced by do...handle blocks.
   SmallVector<llvm::SmallPtrSet<ProtocolDecl *, 4>, 2> NarrowingScope;
 
+  /// Closures that are direct sub-expressions of PerformExpr.
+  llvm::SmallPtrSet<ClosureExpr *, 4> PerformClosures;
+
   const std::optional<SmallVector<ProtocolDecl *, 4>> &
   getOrResolveEffects(AbstractFunctionDecl *fn) {
     auto it = ResolvedCache.find(fn);
@@ -5189,6 +5193,26 @@ public:
           if (!fnTy->isNoEscape()) {
             Ctx.Diags.diagnose(E->getLoc(),
                                diag::context_effect_escaping_closure_allocates);
+          }
+        }
+      }
+    }
+
+    // Check for 'some' in non-perform closure parameters.
+    // Skip if the closure failed type-checking to avoid cascading diagnostics.
+    if (!PerformClosures.count(E) && closureTy && !closureTy->hasError()) {
+      if (auto *params = E->getParameters()) {
+        for (auto *param : *params) {
+          auto *repr = param->getTypeRepr();
+          if (!repr) continue;
+          while (auto *attr = dyn_cast<AttributedTypeRepr>(repr))
+            repr = attr->getTypeRepr();
+          while (auto *spec = dyn_cast<SpecifierTypeRepr>(repr))
+            repr = spec->getBase();
+          if (isa<OpaqueReturnTypeRepr>(repr)) {
+            Ctx.Diags.diagnose(repr->getLoc(),
+                               diag::context_effect_some_not_in_perform);
+            break;
           }
         }
       }
@@ -5335,6 +5359,8 @@ public:
     auto *closure = dyn_cast_or_null<ClosureExpr>(E->getSubExpr());
     if (!closure)
       return ShouldRecurse;
+
+    PerformClosures.insert(closure);
 
     auto *params = closure->getParameters();
     if (!params || params->size() == 0)

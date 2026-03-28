@@ -83,3 +83,62 @@ func testPerformSomeWrongEffect() performs(Network) {
     print(fs.readFile(at: "test.txt"))
   }
 }
+
+// ERROR: 'some' in standalone closure variable (not a perform expression)
+func testSomeStandaloneClosure() performs(FileSystem) {
+  let _ = { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'perform' expressions}}
+    print(fs)
+  }
+}
+
+// ERROR: 'some' in closure passed as argument (not perform)
+func takeClosure(_ f: (inout any FileSystem) -> Void) {}
+func testSomeClosureArg() performs(FileSystem) {
+  takeClosure { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'perform' expressions}}
+    print(fs)
+  }
+}
+
+// ERROR: 'some' in closure inside do...handle (not via perform)
+func testSomeInDoHandle() {
+  do {
+    let _ = { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'perform' expressions}}
+      print(fs)
+    }
+  } handle MockFS() as FileSystem
+}
+
+struct MockNetwork: Network {
+  mutating func fetch(url: String) -> String { "mock: \(url)" }
+}
+
+// OK: nested perform — inner closure IS a perform closure
+func testNestedPerform() performs(FileSystem, Network) {
+  perform { (net: inout Network) in
+    let _ = perform { (fs: inout some FileSystem) in
+      fs.readFile(at: "test.txt")
+    }
+    print(net.fetch(url: "http://example.com"))
+  }
+}
+
+// OK: perform with 'some' but no 'inout' specifier
+func testPerformSomeNoInout() performs(FileSystem) {
+  perform { (fs: some FileSystem) in
+    print(fs)
+  }
+}
+
+// OK: perform with multiple 'some' params
+func testPerformMultipleSomeParams() performs(FileSystem, Network) {
+  perform { (fs: inout some FileSystem) in
+    print(fs.readFile(at: "test.txt"))
+  }
+}
+
+// ERROR: 'some' with non-protocol type
+func testSomeNonProtocol() performs(FileSystem) {
+  let _ = { (x: some Int) in // expected-error {{'some' types are only permitted in properties, subscripts, and functions}}
+    print(x)
+  }
+}

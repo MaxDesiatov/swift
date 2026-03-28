@@ -5749,6 +5749,9 @@ ERROR(context_effect_call_unrestricted_fn_type,none,
       "call to function without 'performs' clause is not allowed in a "
       "restricted effect context; add 'performs(...)' to the function type", ())
 
+ERROR(context_effect_some_not_in_perform,none,
+      "'some' in closure parameters is only allowed in 'perform' expressions", ())
+
 //------------------------------------------------------------------------------
 // MARK: Concurrency
 //------------------------------------------------------------------------------

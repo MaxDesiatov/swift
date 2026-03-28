@@ -458,7 +458,6 @@ namespace {
 
       // 1. Determine effect protocol from the closure's parameter type.
       auto closureType = E->getSubExpr()->getType()->castTo<FunctionType>();
-      auto paramFlags = closureType->getParams()[0].getParameterFlags();
       Type paramType = closureType->getParams()[0].getParameterType();
       if (auto *inout = paramType->getAs<InOutType>())
         paramType = inout->getObjectType();
@@ -482,6 +481,8 @@ namespace {
       bool useSomeDispatch = false;
       if (closure && closure->getParameters()->size() > 0) {
         auto *paramRepr = closure->getParameters()->get(0)->getTypeRepr();
+        if (auto *attr = dyn_cast_or_null<AttributedTypeRepr>(paramRepr))
+          paramRepr = attr->getTypeRepr();
         if (auto *spec = dyn_cast_or_null<SpecifierTypeRepr>(paramRepr))
           paramRepr = spec->getBase();
         useSomeDispatch = paramRepr && isa<OpaqueReturnTypeRepr>(paramRepr);
@@ -497,7 +498,8 @@ namespace {
           if (auto *call = dyn_cast<ApplyExpr>(subExpr)) {
             auto *calledValue = call->getCalledValue(/*skipFnConv*/ true);
             auto *afd = dyn_cast_or_null<AbstractFunctionDecl>(calledValue);
-            if (afd && isa<ProtocolDecl>(afd->getDeclContext())) {
+            if (afd && isa<ProtocolDecl>(afd->getDeclContext()) &&
+                afd->getGenericSignature().getGenericParams().size() == 1) {
               // Build SILDeclRef for the witness table entry.
               SILDeclRef constant(afd);
               if (!constant.requiresNewWitnessTableEntry())
@@ -529,39 +531,55 @@ namespace {
 
                 // Sanity: non-self args + self == total params.
                 if (argList->size() + 1 == params.size()) {
-                  // Emit witness_method instruction.
-                  auto wm = SGF.B.createWitnessMethod(
-                      E, handlerArchetype,
-                      ProtocolConformanceRef::forAbstract(
-                          handlerArchetype, proto),
-                      constant, witnessSILType);
-
-                  // Emit non-self arguments.
-                  SmallVector<SILValue, 4> silArgs;
+                  // Check all argument conventions before emitting
+                  // any SIL instructions. Bail to Path B if any
+                  // convention is not direct (indirect/unowned).
+                  bool allConventionsSupported = true;
                   for (unsigned i = 0; i < argList->size(); i++) {
-                    ManagedValue argMV =
-                        SGF.emitRValueAsSingleValue(argList->getExpr(i));
                     auto conv = params[i].getConvention();
-                    if (conv == ParameterConvention::Direct_Guaranteed) {
-                      silArgs.push_back(
-                          argMV.borrow(SGF, E).getValue());
-                    } else {
-                      silArgs.push_back(argMV.forward(SGF));
+                    if (conv != ParameterConvention::Direct_Guaranteed &&
+                        conv != ParameterConvention::Direct_Owned) {
+                      allConventionsSupported = false;
+                      break;
                     }
                   }
 
-                  // Self = handler address (last parameter, @inout).
-                  silArgs.push_back(handlerAddr);
+                  if (allConventionsSupported) {
+                    // Emit witness_method instruction.
+                    auto wm = SGF.B.createWitnessMethod(
+                        E, handlerArchetype,
+                        ProtocolConformanceRef::forAbstract(
+                            handlerArchetype, proto),
+                        constant, witnessSILType);
 
-                  auto result =
-                      SGF.B.createApply(E, wm, subs, silArgs);
+                    // Emit non-self arguments.
+                    SmallVector<SILValue, 4> silArgs;
+                    for (unsigned i = 0; i < argList->size(); i++) {
+                      ManagedValue argMV =
+                          SGF.emitRValueAsSingleValue(argList->getExpr(i));
+                      auto conv = params[i].getConvention();
+                      if (conv == ParameterConvention::Direct_Guaranteed) {
+                        silArgs.push_back(
+                            argMV.borrow(SGF, E).getValue());
+                      } else {
+                        assert(conv == ParameterConvention::Direct_Owned);
+                        silArgs.push_back(argMV.forward(SGF));
+                      }
+                    }
 
-                  auto resultType = E->getType()->getCanonicalType();
-                  auto loweredResultType = SGF.getLoweredType(resultType);
-                  if (loweredResultType.isVoid())
-                    return SGF.emitEmptyTupleRValue(E, C);
-                  return RValue(SGF, E,
-                                SGF.emitManagedRValueWithCleanup(result));
+                    // Self = handler address (last parameter, @inout).
+                    silArgs.push_back(handlerAddr);
+
+                    auto result =
+                        SGF.B.createApply(E, wm, subs, silArgs);
+
+                    auto resultType = E->getType()->getCanonicalType();
+                    auto loweredResultType = SGF.getLoweredType(resultType);
+                    if (loweredResultType.isVoid())
+                      return SGF.emitEmptyTupleRValue(E, C);
+                    return RValue(SGF, E,
+                                  SGF.emitManagedRValueWithCleanup(result));
+                  }
                 }
               }
             }
@@ -608,6 +626,7 @@ namespace {
           E, closureFn.getValue(), SubstitutionMap(), {existentialAddr});
 
       // Copy the (potentially mutated) value back from the existential.
+      auto paramFlags = closureType->getParams()[0].getParameterFlags();
       if (paramFlags.isInOut()) {
         SGF.B.createCopyAddr(E, projAddr, handlerAddr, IsNotTake,
                              IsNotInitialization);
