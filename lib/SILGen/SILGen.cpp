@@ -1341,6 +1341,20 @@ void SILGenModule::preEmitFunction(SILDeclRef constant, SILFunction *F,
   if (F->getLoweredFunctionType()->isPolymorphic()) {
     auto [genericEnv, capturedEnvs, forwardingSubs]
         = Types.getForwardingSubstitutionsForLowering(constant);
+
+    // If the SIL function type has handler generic params (from performed
+    // effects), the AST-level generic environment may not cover them.
+    // In that case, use the SIL function type's invocation generic signature
+    // to build the generic environment.
+    auto silGenSig =
+        F->getLoweredFunctionType()->getInvocationGenericSignature();
+    if (silGenSig && (!genericEnv ||
+        !silGenSig->isEqual(genericEnv->getGenericSignature()))) {
+      genericEnv = silGenSig.getGenericEnvironment();
+      forwardingSubs = genericEnv->getForwardingSubstitutionMap();
+      capturedEnvs = {};
+    }
+
     F->setGenericEnvironment(genericEnv, capturedEnvs, forwardingSubs);
   }
 

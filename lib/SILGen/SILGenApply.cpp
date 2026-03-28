@@ -830,6 +830,113 @@ public:
     return Substitutions;
   }
 
+  /// Extend Substitutions to cover handler generic params from performed
+  /// effects. Returns an ordered list of handler (ProtocolDecl*, SILValue)
+  /// pairs for the handler args that need to be passed.
+  SmallVector<std::pair<ProtocolDecl *, SILValue>, 2>
+  extendSubstitutionsForHandlers(SILGenFunction &SGF) {
+    SmallVector<std::pair<ProtocolDecl *, SILValue>, 2> handlerArgs;
+
+    if (!Constant)
+      return handlerArgs;
+
+    auto constantInfo =
+        SGF.getConstantInfo(SGF.getTypeExpansionContext(), Constant);
+    auto silFnType = constantInfo.getSILType().castTo<SILFunctionType>();
+
+    if (!silFnType->isPolymorphic())
+      return handlerArgs;
+
+    auto extSig = silFnType->getInvocationGenericSignature();
+
+    // Find handler implicit params and their protocols.
+    for (auto param : silFnType->getParameters()) {
+      if (!param.hasOption(SILParameterInfo::ImplicitLeading))
+        break;
+      if (param.getConvention() == ParameterConvention::Indirect_Inout &&
+          !param.hasOption(SILParameterInfo::Isolated)) {
+        // This is a handler param. Find its protocol from the generic sig.
+        auto paramIfaceTy = param.getInterfaceType();
+        if (auto *gp = paramIfaceTy->getAs<GenericTypeParamType>()) {
+          for (auto &req : extSig.getRequirements()) {
+            if (req.getKind() == RequirementKind::Conformance &&
+                req.getFirstType()->isEqual(gp)) {
+              if (auto *proto = req.getProtocolDecl()) {
+                auto handlerAddr = SGF.EffectHandlers.lookup(proto);
+                if (handlerAddr)
+                  handlerArgs.push_back({proto, handlerAddr});
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (handlerArgs.empty())
+      return handlerArgs;
+
+    // Build extended SubstitutionMap.
+    auto origSubs = Substitutions;
+    GenericSignature origSig;
+    if (origSubs)
+      origSig = origSubs.getGenericSignature();
+
+    Substitutions = SubstitutionMap::get(
+        extSig,
+        [&](SubstitutableType *type) -> Type {
+          auto *gp = cast<GenericTypeParamType>(type);
+          // If param exists in original sig, use original subs.
+          if (origSig) {
+            for (auto origParam : origSig.getGenericParams()) {
+              if (origParam->getDepth() == gp->getDepth() &&
+                  origParam->getIndex() == gp->getIndex()) {
+                return Type(gp).subst(origSubs);
+              }
+            }
+          }
+          // Handler param — find handler address type from EffectHandlers.
+          for (auto &req : extSig.getRequirements()) {
+            if (req.getKind() == RequirementKind::Conformance &&
+                req.getFirstType()->isEqual(gp)) {
+              if (auto *proto = req.getProtocolDecl()) {
+                if (auto addr = SGF.EffectHandlers.lookup(proto)) {
+                  return addr->getType().getASTType();
+                }
+              }
+            }
+          }
+          return Type(gp);
+        },
+        [&](InFlightSubstitution &IFS, Type conformingType,
+            ProtocolDecl *proto) -> ProtocolConformanceRef {
+          // First check if the original subs cover this type.
+          if (origSig && origSubs) {
+            for (auto origParam : origSig.getGenericParams()) {
+              if (origParam->isEqual(conformingType)) {
+                auto substType = Type(conformingType).subst(origSubs);
+                auto conf = swift::checkConformance(substType, proto);
+                if (conf)
+                  return conf;
+              }
+            }
+          }
+          // For handler params, look up the concrete handler type and check
+          // conformance against it.
+          if (auto addr = SGF.EffectHandlers.lookup(proto)) {
+            auto concreteType = addr->getType().getASTType();
+            if (!concreteType->hasTypeParameter()) {
+              auto conf = swift::checkConformance(concreteType, proto);
+              if (conf)
+                return conf;
+            }
+          }
+          return ProtocolConformanceRef::forAbstract(conformingType, proto);
+        });
+
+    return handlerArgs;
+  }
+
   SILDeclRef getMethodName() const {
     return Constant;
   }
@@ -5232,6 +5339,9 @@ class CallEmission {
   bool implicitlyThrows;
   bool canUnwind;
 
+  /// Handler args for performed effects, filled by applyNormalCall.
+  SmallVector<std::pair<ProtocolDecl *, SILValue>, 2> handlerArgs;
+
 public:
   /// Create an emission for a call of the given callee.
   CallEmission(SILGenFunction &SGF, Callee &&callee,
@@ -5597,6 +5707,9 @@ RValue CallEmission::applyNormalCall(SGFContext C) {
   auto origFormalType = callee.getOrigFormalType();
   auto lifetimeDependencies = origFormalType.getLifetimeDependencies();
 
+  // Extend substitutions for handler params from performed effects.
+  handlerArgs = callee.extendSubstitutionsForHandlers(SGF);
+
   // Get the callee type information.
   auto calleeTypeInfo = callee.getTypeInfo(SGF);
 
@@ -5884,6 +5997,10 @@ ApplyOptions CallEmission::emitArgumentsForNormalApply(
       paramLowering.claimImplicitParameters();
     }
 
+    // Claim handler implicit params for performed effects.
+    for (unsigned i = 0; i < handlerArgs.size(); ++i)
+      paramLowering.claimImplicitParameters();
+
     // Collect the captures, if any.
     if (callee.hasCaptures()) {
       (void)paramLowering.claimCaptureParams(callee.getCaptures());
@@ -5931,6 +6048,14 @@ ApplyOptions CallEmission::emitArgumentsForNormalApply(
             .borrow(SGF, callSite->Loc);
     args.back().push_back(
         SGF.B.convertToImplicitActor(callSite->Loc, erasedActor));
+  }
+
+  // Emit handler args for performed effects.
+  if (!handlerArgs.empty()) {
+    args.push_back({});
+    for (auto &[proto, handlerAddr] : handlerArgs) {
+      args.back().push_back(ManagedValue::forLValue(handlerAddr));
+    }
   }
 
   uncurriedLoc = callSite->Loc;

@@ -2578,6 +2578,51 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
             infoBuilder.withLifetimeDependencies(*lifetimeDependenceInfo);
       }
 
+      // Resolve performed effects and add to ExtInfo.
+      if (AFD->hasPerforms()) {
+        SmallVector<Type, 2> effectTypes;
+        bool sawNever = false;
+        auto options = TypeResolutionOptions(TypeResolverContext::None);
+        for (auto &typeLoc : AFD->getPerformedEffects()) {
+          auto *typeRepr = typeLoc.getTypeRepr();
+          if (!typeRepr) continue;
+          auto resolvedType =
+              TypeResolution::forInterface(AFD, options,
+                                           /*unboundTyOpener*/ nullptr,
+                                           /*placeholderOpener*/ nullptr,
+                                           /*packElementOpener*/ nullptr)
+                  .resolveType(typeRepr);
+          if (resolvedType->hasError()) continue;
+          if (resolvedType->isNever()) {
+            sawNever = true;
+            continue;
+          }
+          // Only include protocol types — non-protocol types will be
+          // diagnosed later by resolvePerformedEffects in TypeCheckEffects.
+          Type constraintType = resolvedType;
+          if (auto *et = constraintType->getAs<ExistentialType>())
+            constraintType = et->getConstraintType();
+          if (!constraintType->is<ProtocolType>() &&
+              !constraintType->is<ProtocolCompositionType>())
+            continue;
+          // Use the unwrapped constraint type for composition.
+          effectTypes.push_back(constraintType);
+        }
+
+        Type performedEffects;
+        if (effectTypes.size() == 1) {
+          performedEffects = effectTypes[0];
+        } else if (effectTypes.size() > 1) {
+          performedEffects = ProtocolCompositionType::get(
+              Context, effectTypes, /*Inverses=*/{},
+              /*HasExplicitAnyObject=*/false);
+        } else if (sawNever) {
+          performedEffects = Context.getNeverType();
+        }
+        if (performedEffects)
+          infoBuilder = infoBuilder.withPerformedEffects(performedEffects);
+      }
+
       auto info = infoBuilder.build();
 
       if (sig && !hasSelf) {

@@ -1355,9 +1355,48 @@ void StmtEmitter::visitDoStmt(DoStmt *S) {
 }
 
 void StmtEmitter::visitDoHandleStmt(DoHandleStmt *S) {
-  // TODO: Implement proper SILGen for do...handle blocks (effect handler setup).
-  // For now, just emit the body.
+  SmallVector<std::pair<ProtocolDecl *, SILValue>, 2> savedHandlers;
+  Scope scope(SGF.Cleanups, CleanupLocation(S));
+
+  for (auto &clause : S->getHandleClauses()) {
+    // Resolve effect protocol from the clause's effect type.
+    ProtocolDecl *proto = nullptr;
+    Type effectType = clause.EffectType.getType();
+    if (auto *protoType = effectType->getAs<ProtocolType>())
+      proto = protoType->getDecl();
+    else if (auto *existType = effectType->getAs<ExistentialType>())
+      if (auto *protoType2 =
+              existType->getConstraintType()->getAs<ProtocolType>())
+        proto = protoType2->getDecl();
+
+    if (!proto) continue;
+
+    // Get the concrete handler type and allocate on stack.
+    Type concreteType = clause.HandlerExpr->getType();
+    auto &concreteTL = SGF.getTypeLowering(concreteType);
+    SILValue handlerAddr =
+        SGF.B.createAllocStack(S, concreteTL.getLoweredType());
+    SGF.enterDeallocStackCleanup(handlerAddr);
+
+    // Emit handler expression and store into stack slot.
+    ManagedValue handler = SGF.emitRValueAsSingleValue(clause.HandlerExpr);
+    handler.forwardInto(SGF, S, handlerAddr);
+
+    // Save old handler and install the new one.
+    savedHandlers.push_back({proto, SGF.EffectHandlers.lookup(proto)});
+    SGF.EffectHandlers[proto] = handlerAddr;
+  }
+
+  // Emit the body.
   visit(S->getBody());
+
+  // Restore old handlers (reverse order).
+  for (auto it = savedHandlers.rbegin(); it != savedHandlers.rend(); ++it) {
+    if (it->second)
+      SGF.EffectHandlers[it->first] = it->second;
+    else
+      SGF.EffectHandlers.erase(it->first);
+  }
 }
 
 void StmtEmitter::visitDoCatchStmt(DoCatchStmt *S) {

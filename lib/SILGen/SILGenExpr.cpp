@@ -451,9 +451,85 @@ namespace {
     }
 
     RValue visitPerformExpr(PerformExpr *E, SGFContext C) {
-      // TODO: Implement proper SILGen for perform expressions (effect handler lookup).
-      // For now, just emit the sub-expression (the closure).
-      return visit(E->getSubExpr(), C);
+      // The perform expression applies its closure sub-expression to the
+      // current effect handler. The closure has existential param type
+      // (e.g., @inout any FileSystem), and we bridge the concrete handler
+      // through an existential container.
+
+      // 1. Determine effect protocol from the closure's parameter type.
+      auto closureType = E->getSubExpr()->getType()->castTo<FunctionType>();
+      auto paramFlags = closureType->getParams()[0].getParameterFlags();
+      Type paramType = closureType->getParams()[0].getParameterType();
+      // Unwrap InOutType if present.
+      if (auto *inout = paramType->getAs<InOutType>())
+        paramType = inout->getObjectType();
+
+      ProtocolDecl *proto = nullptr;
+      Type constraintType = paramType;
+      if (auto *et = paramType->getAs<ExistentialType>())
+        constraintType = et->getConstraintType();
+      if (auto *pt = constraintType->getAs<ProtocolType>())
+        proto = pt->getDecl();
+
+      assert(proto && "perform closure param should be a protocol type");
+
+      // 2. Look up the handler address.
+      SILValue handlerAddr = SGF.EffectHandlers.lookup(proto);
+      assert(handlerAddr && "no handler for effect protocol");
+
+      // 3. Get the concrete handler type.
+      auto concreteSILType = handlerAddr->getType(); // $*ConcreteType
+      auto concreteFormalType =
+          concreteSILType.getASTType(); // canonical AST type
+
+      // 4. Create existential container on the stack.
+      Type existentialType = paramType;
+      if (!existentialType->isExistentialType())
+        existentialType = ExistentialType::get(existentialType);
+      auto &existentialTL = SGF.getTypeLowering(existentialType);
+      auto existentialAddr =
+          SGF.B.createAllocStack(E, existentialTL.getLoweredType());
+      SGF.enterDeallocStackCleanup(existentialAddr);
+
+      // 5. init_existential_addr: existentialAddr <- handler value.
+      auto conformances = collectExistentialConformances(
+          concreteFormalType, existentialType->getCanonicalType());
+      auto concreteLoweredType = SGF.getLoweredType(
+          AbstractionPattern::getOpaque(), concreteFormalType);
+      auto projAddr = SGF.B.createInitExistentialAddr(
+          E, existentialAddr, concreteFormalType,
+          concreteLoweredType.getAddressType(), conformances);
+      SGF.B.createCopyAddr(E, handlerAddr, projAddr, IsNotTake,
+                           IsInitialization);
+
+      // 6. Emit the closure.
+      ManagedValue closureFn =
+          SGF.emitRValueAsSingleValue(E->getSubExpr());
+
+      // 7. Apply the closure to the existential address.
+      auto resultType = E->getType()->getCanonicalType();
+      auto loweredResultType = SGF.getLoweredType(resultType);
+
+      SmallVector<ManagedValue, 1> args;
+      args.push_back(ManagedValue::forLValue(existentialAddr));
+
+      auto result = SGF.B.createApply(
+          E, closureFn.getValue(), SubstitutionMap(), {existentialAddr});
+
+      // 8. Copy the (potentially mutated) value back from the existential.
+      if (paramFlags.isInOut()) {
+        SGF.B.createCopyAddr(E, projAddr, handlerAddr, IsNotTake,
+                             IsNotInitialization);
+      }
+
+      // 9. Destroy the existential content and dealloc.
+      SGF.B.createDestroyAddr(E, existentialAddr);
+
+      // 10. Return the result.
+      if (loweredResultType.isVoid()) {
+        return SGF.emitEmptyTupleRValue(E, C);
+      }
+      return RValue(SGF, E, SGF.emitManagedRValueWithCleanup(result));
     }
 
     // These always produce lvalues.

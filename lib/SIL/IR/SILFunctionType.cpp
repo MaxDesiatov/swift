@@ -1863,6 +1863,10 @@ class DestructureInputs {
   SmallBitVector &ConditionallyAddressableLoweredParameters;
   unsigned NextOrigParamIndex = 0;
 
+  /// Handler generic param canonical types for performed effects.
+  /// Each entry corresponds to an @inout implicit handler parameter.
+  ArrayRef<CanType> HandlerParamTypes;
+
   void addLoweredParameter(SILParameterInfo parameter,
                            unsigned formalParameterIndex) {
     assert(Inputs.size() == ParameterMap.size());
@@ -1878,13 +1882,15 @@ public:
                     SmallVectorImpl<int> &parameterMap,
                     SmallBitVector &addressableParams,
                     SmallBitVector &conditionallyAddressableParams,
-                    std::optional<SILDeclRef> constant)
+                    std::optional<SILDeclRef> constant,
+                    ArrayRef<CanType> handlerParamTypes = {})
     : expansion(expansion), TC(TC), Convs(conventions), Foreign(foreign),
       IsolationInfo(isolationInfo),
       Constant(constant), Inputs(inputs),
       ParameterMap(parameterMap),
       AddressableLoweredParameters(addressableParams),
-      ConditionallyAddressableLoweredParameters(conditionallyAddressableParams)
+      ConditionallyAddressableLoweredParameters(conditionallyAddressableParams),
+      HandlerParamTypes(handlerParamTypes)
   {}
 
   void destructure(AbstractionPattern origType,
@@ -1954,6 +1960,15 @@ private:
       addParameter(-1, CanType(TC.Context.TheImplicitActorType),
                    ParameterConvention::Direct_Guaranteed,
                    ParameterTypeFlags().withIsolated(true),
+                   true /*implicit leading parameter*/);
+    }
+
+    // If the function has performed effects, insert implicit @inout handler
+    // parameters for each effect protocol.
+    for (auto handlerParamType : HandlerParamTypes) {
+      addParameter(-1, handlerParamType,
+                   ParameterConvention::Indirect_Inout,
+                   ParameterTypeFlags(),
                    true /*implicit leading parameter*/);
     }
 
@@ -2728,6 +2743,65 @@ static CanSILFunctionType getSILFunctionType(
   CanGenericSignature genericSig =
     substFnInterfaceType.getOptGenericSignature();
 
+  // Extend generic signature for performed effects handler parameters.
+  // Each effect protocol E introduces a generic type param H: E and an
+  // implicit @inout H parameter.
+  SmallVector<CanType, 2> handlerParamTypes;
+  if (auto performedEffects = substFnInterfaceType->getPerformedEffects()) {
+    if (!performedEffects->isNever()) {
+      // Extract effect protocols.
+      SmallVector<ProtocolDecl *, 4> protocols;
+      Type effectsType = performedEffects;
+      if (auto *et = effectsType->getAs<ExistentialType>())
+        effectsType = et->getConstraintType();
+
+      if (auto *proto = dyn_cast_or_null<ProtocolDecl>(
+              effectsType->getAnyNominal())) {
+        protocols.push_back(proto);
+      } else if (auto *comp =
+                     effectsType->getAs<ProtocolCompositionType>()) {
+        for (auto member : comp->getMembers()) {
+          if (auto *proto = dyn_cast_or_null<ProtocolDecl>(
+                  member->getAnyNominal()))
+            protocols.push_back(proto);
+        }
+      }
+
+      if (!protocols.empty()) {
+        // Sort alphabetically for deterministic ordering.
+        llvm::sort(protocols, [](ProtocolDecl *a, ProtocolDecl *b) {
+          return a->getName().str() < b->getName().str();
+        });
+
+        // Create new generic params + conformance requirements.
+        SmallVector<GenericTypeParamType *, 2> addedParams;
+        SmallVector<Requirement, 2> addedRequirements;
+        unsigned depth = genericSig ? genericSig.getNextDepth() : 0;
+
+        for (unsigned i = 0; i < protocols.size(); ++i) {
+          auto *param =
+              GenericTypeParamType::getType(depth, i, TC.Context);
+          addedParams.push_back(param);
+          addedRequirements.push_back(Requirement(
+              RequirementKind::Conformance, param,
+              protocols[i]->getDeclaredInterfaceType()));
+        }
+
+        // Build extended generic signature.
+        genericSig =
+            buildGenericSignature(TC.Context, genericSig, addedParams,
+                                  addedRequirements,
+                                  /*allowInverses=*/true)
+                .getCanonicalSignature();
+
+        // Collect canonical types for the handler params.
+        for (auto *param : addedParams) {
+          handlerParamTypes.push_back(param->getCanonicalType());
+        }
+      }
+    }
+  }
+
   std::optional<TypeConverter::GenericContextRAII> contextRAII;
   if (genericSig) contextRAII.emplace(TC, genericSig);
   auto loweredSig = TC.getCurGenericSignature();
@@ -2930,7 +3004,7 @@ static CanSILFunctionType getSILFunctionType(
                                    parameterMap,
                                    addressableParams,
                                    conditionallyAddressableParams,
-                                   constant);
+                                   constant, handlerParamTypes);
     destructurer.destructure(origType, substFnInterfaceType.getParams(),
                              extInfoBuilder, unimplementable);
   }

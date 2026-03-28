@@ -439,6 +439,11 @@ public:
   /// of the exception type.
   JumpDest ThrowDest = JumpDest::invalid();
 
+  /// Map from effect ProtocolDecl to handler address (@inout generic handler
+  /// param). Populated from implicit handler parameters in the function prolog
+  /// or from do...handle blocks.
+  llvm::DenseMap<ProtocolDecl *, SILValue> EffectHandlers;
+
   /// Support for typed throws.
   SILArgument *IndirectErrorResult = nullptr;
 

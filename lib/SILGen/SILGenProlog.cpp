@@ -1743,6 +1743,41 @@ uint16_t SILGenFunction::emitBasicProlog(
                        std::move(scopedDependencyParams))
       .emitParams(origClosureType, paramList, selfParam);
 
+  // Bind implicit handler parameters for performed effects.
+  // Handler params are implicit leading @inout params that are NOT isolated.
+  {
+    auto fnTy = F.getLoweredFunctionType();
+    auto genSig = fnTy->getInvocationGenericSignature();
+    unsigned bbArgIdx = 0;
+    // Skip indirect results to find the first parameter's BB arg.
+    bbArgIdx += fnTy->getNumIndirectFormalResults();
+    if (fnTy->hasIndirectErrorResult())
+      bbArgIdx += 1;
+    for (auto param : fnTy->getParameters()) {
+      if (!param.hasOption(SILParameterInfo::ImplicitLeading))
+        break;
+      if (param.getConvention() == ParameterConvention::Indirect_Inout &&
+          !param.hasOption(SILParameterInfo::Isolated) && genSig) {
+        SILValue handlerAddr = F.begin()->getArgument(bbArgIdx);
+        // Find the protocol from the generic signature's conformance
+        // requirement on this param's type.
+        auto paramIfaceTy = param.getInterfaceType();
+        if (auto *gp = paramIfaceTy->getAs<GenericTypeParamType>()) {
+          for (auto &req : genSig.getRequirements()) {
+            if (req.getKind() == RequirementKind::Conformance &&
+                req.getFirstType()->isEqual(gp)) {
+              if (auto *proto = req.getProtocolDecl()) {
+                EffectHandlers[proto] = handlerAddr;
+              }
+              break;
+            }
+          }
+        }
+      }
+      bbArgIdx++;
+    }
+  }
+
   // Record the ArgNo of the artificial $error inout argument. 
   if (errorType && IndirectErrorResult == nullptr) {
     CanType errorTypeInContext =
