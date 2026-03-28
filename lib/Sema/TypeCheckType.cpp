@@ -3059,6 +3059,19 @@ NeverNullType TypeResolver::resolveType(TypeRepr *repr,
         }
       }
     }
+    // In closure parameters, 'some P' resolves to the existential type.
+    // SILGen detects the 'some' via TypeRepr and uses generic dispatch
+    // on the effect handler's archetype type.
+    if (isa<AbstractClosureExpr>(DC)) {
+      auto constraintType = resolveType(opaqueRepr->getConstraint(),
+                                        options | TypeResolutionFlags::SilenceDiagnostics);
+      if (!constraintType->hasError()) {
+        if (constraintType->isConstraintType())
+          return ExistentialType::get(constraintType);
+        return constraintType;
+      }
+    }
+
     if (!repr->isInvalid() && !hasInvalidPlaceholder){
       // We are not inside an `OpaqueTypeDecl`, so diagnose an error.
       if (!(options & TypeResolutionFlags::SilenceDiagnostics)) {

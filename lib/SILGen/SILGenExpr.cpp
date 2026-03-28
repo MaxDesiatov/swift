@@ -452,15 +452,14 @@ namespace {
 
     RValue visitPerformExpr(PerformExpr *E, SGFContext C) {
       // The perform expression applies its closure sub-expression to the
-      // current effect handler. The closure has existential param type
-      // (e.g., @inout any FileSystem), and we bridge the concrete handler
-      // through an existential container.
+      // current effect handler. Two paths:
+      //   Path A (some): Direct witness method dispatch on handler archetype.
+      //   Path B (no some): Existential bridge via alloc_stack + copy.
 
       // 1. Determine effect protocol from the closure's parameter type.
       auto closureType = E->getSubExpr()->getType()->castTo<FunctionType>();
       auto paramFlags = closureType->getParams()[0].getParameterFlags();
       Type paramType = closureType->getParams()[0].getParameterType();
-      // Unwrap InOutType if present.
       if (auto *inout = paramType->getAs<InOutType>())
         paramType = inout->getObjectType();
 
@@ -477,12 +476,107 @@ namespace {
       SILValue handlerAddr = SGF.EffectHandlers.lookup(proto);
       assert(handlerAddr && "no handler for effect protocol");
 
-      // 3. Get the concrete handler type.
-      auto concreteSILType = handlerAddr->getType(); // $*ConcreteType
-      auto concreteFormalType =
-          concreteSILType.getASTType(); // canonical AST type
+      // 3. Detect 'some' keyword for generic dispatch (Path A).
+      auto *closure = dyn_cast<ClosureExpr>(
+          E->getSubExpr()->getSemanticsProvidingExpr());
+      bool useSomeDispatch = false;
+      if (closure && closure->getParameters()->size() > 0) {
+        auto *paramRepr = closure->getParameters()->get(0)->getTypeRepr();
+        if (auto *spec = dyn_cast_or_null<SpecifierTypeRepr>(paramRepr))
+          paramRepr = spec->getBase();
+        useSomeDispatch = paramRepr && isa<OpaqueReturnTypeRepr>(paramRepr);
+      }
 
-      // 4. Create existential container on the stack.
+      // Path A: Direct witness method dispatch for 'some' closures.
+      if (useSomeDispatch && closure->hasSingleExpressionBody()) {
+        Expr *bodyExpr =
+            closure->getSingleExpressionBody()->getSemanticsProvidingExpr();
+        if (auto *openExist = dyn_cast<OpenExistentialExpr>(bodyExpr)) {
+          Expr *subExpr =
+              openExist->getSubExpr()->getSemanticsProvidingExpr();
+          if (auto *call = dyn_cast<ApplyExpr>(subExpr)) {
+            auto *calledValue = call->getCalledValue(/*skipFnConv*/ true);
+            auto *afd = dyn_cast_or_null<AbstractFunctionDecl>(calledValue);
+            if (afd && isa<ProtocolDecl>(afd->getDeclContext())) {
+              // Build SILDeclRef for the witness table entry.
+              SILDeclRef constant(afd);
+              if (!constant.requiresNewWitnessTableEntry())
+                constant = constant.getOverriddenWitnessTableEntry();
+
+              auto &constantInfo =
+                  SGF.getConstantInfo(SGF.getTypeExpansionContext(), constant);
+
+              // Build SubstitutionMap: Self → handler archetype.
+              auto handlerArchetype =
+                  handlerAddr->getType().getASTType();
+              auto subs = SubstitutionMap::get(
+                  afd->getGenericSignature(),
+                  [&](SubstitutableType *t) -> Type {
+                    return handlerArchetype;
+                  },
+                  LookUpConformanceInModule());
+
+              // Get substituted function type to check conventions.
+              auto witnessSILType = constantInfo.getSILType();
+              auto substFnType =
+                  witnessSILType.castTo<SILFunctionType>()->substGenericArgs(
+                      SGF.SGM.M, subs, SGF.getTypeExpansionContext());
+
+              // Only handle direct results for now.
+              if (!substFnType->hasIndirectFormalResults()) {
+                auto params = substFnType->getParameters();
+                auto *argList = call->getArgs();
+
+                // Sanity: non-self args + self == total params.
+                if (argList->size() + 1 == params.size()) {
+                  // Emit witness_method instruction.
+                  auto wm = SGF.B.createWitnessMethod(
+                      E, handlerArchetype,
+                      ProtocolConformanceRef::forAbstract(
+                          handlerArchetype, proto),
+                      constant, witnessSILType);
+
+                  // Emit non-self arguments.
+                  SmallVector<SILValue, 4> silArgs;
+                  for (unsigned i = 0; i < argList->size(); i++) {
+                    ManagedValue argMV =
+                        SGF.emitRValueAsSingleValue(argList->getExpr(i));
+                    auto conv = params[i].getConvention();
+                    if (conv == ParameterConvention::Direct_Guaranteed) {
+                      silArgs.push_back(
+                          argMV.borrow(SGF, E).getValue());
+                    } else {
+                      silArgs.push_back(argMV.forward(SGF));
+                    }
+                  }
+
+                  // Self = handler address (last parameter, @inout).
+                  silArgs.push_back(handlerAddr);
+
+                  auto result =
+                      SGF.B.createApply(E, wm, subs, silArgs);
+
+                  auto resultType = E->getType()->getCanonicalType();
+                  auto loweredResultType = SGF.getLoweredType(resultType);
+                  if (loweredResultType.isVoid())
+                    return SGF.emitEmptyTupleRValue(E, C);
+                  return RValue(SGF, E,
+                                SGF.emitManagedRValueWithCleanup(result));
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Path B: Existential bridge (fallback for non-'some' closures
+      // or complex closure bodies).
+
+      // Get the concrete handler type.
+      auto concreteSILType = handlerAddr->getType();
+      auto concreteFormalType = concreteSILType.getASTType();
+
+      // Create existential container on the stack.
       Type existentialType = paramType;
       if (!existentialType->isExistentialType())
         existentialType = ExistentialType::get(existentialType);
@@ -491,7 +585,7 @@ namespace {
           SGF.B.createAllocStack(E, existentialTL.getLoweredType());
       SGF.enterDeallocStackCleanup(existentialAddr);
 
-      // 5. init_existential_addr: existentialAddr <- handler value.
+      // init_existential_addr: existentialAddr <- handler value.
       auto conformances = collectExistentialConformances(
           concreteFormalType, existentialType->getCanonicalType());
       auto concreteLoweredType = SGF.getLoweredType(
@@ -502,33 +596,28 @@ namespace {
       SGF.B.createCopyAddr(E, handlerAddr, projAddr, IsNotTake,
                            IsInitialization);
 
-      // 6. Emit the closure.
+      // Emit the closure.
       ManagedValue closureFn =
           SGF.emitRValueAsSingleValue(E->getSubExpr());
 
-      // 7. Apply the closure to the existential address.
+      // Apply the closure to the existential address.
       auto resultType = E->getType()->getCanonicalType();
       auto loweredResultType = SGF.getLoweredType(resultType);
-
-      SmallVector<ManagedValue, 1> args;
-      args.push_back(ManagedValue::forLValue(existentialAddr));
 
       auto result = SGF.B.createApply(
           E, closureFn.getValue(), SubstitutionMap(), {existentialAddr});
 
-      // 8. Copy the (potentially mutated) value back from the existential.
+      // Copy the (potentially mutated) value back from the existential.
       if (paramFlags.isInOut()) {
         SGF.B.createCopyAddr(E, projAddr, handlerAddr, IsNotTake,
                              IsNotInitialization);
       }
 
-      // 9. Destroy the existential content and dealloc.
+      // Destroy the existential content and dealloc.
       SGF.B.createDestroyAddr(E, existentialAddr);
 
-      // 10. Return the result.
-      if (loweredResultType.isVoid()) {
+      if (loweredResultType.isVoid())
         return SGF.emitEmptyTupleRValue(E, C);
-      }
       return RValue(SGF, E, SGF.emitManagedRValueWithCleanup(result));
     }
 
