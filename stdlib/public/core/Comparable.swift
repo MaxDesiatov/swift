@@ -185,6 +185,7 @@ extension Comparable where Self: ~Copyable & ~Escapable {
   ///   - rhs: Another value to compare.
   @inlinable
   @_preInverseGenerics
+  @_semantics("performs_never")
   public static func > (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
     return rhs < lhs
   }
@@ -200,6 +201,7 @@ extension Comparable where Self: ~Copyable & ~Escapable {
   ///   - rhs: Another value to compare.
   @inlinable
   @_preInverseGenerics
+  @_semantics("performs_never")
   public static func <= (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
     return !(rhs < lhs)
   }
@@ -217,6 +219,7 @@ extension Comparable where Self: ~Copyable & ~Escapable {
   ///   `false`.
   @inlinable
   @_preInverseGenerics
+  @_semantics("performs_never")
   public static func >= (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
     return !(lhs < rhs)
   }

@@ -8,9 +8,11 @@ protocol Network: Effect {
   mutating func fetch(url: String) -> String
 }
 struct MockFS: FileSystem {
+  init() performs(Never) {}
   mutating func readFile(at path: String) -> String { "mock: \(path)" }
 }
 struct MockNet: Network {
+  init() performs(Never) {}
   mutating func fetch(url: String) -> String { "net: \(url)" }
 }
 
@@ -25,29 +27,26 @@ func readFile(at path: String) performs(FileSystem) -> String { // expected-note
 func testCallWithHandler() {
   do {
     let content = readFile(at: "test.txt")
-    print("Handler provided:", content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
 // Nested effects — two performs, two handles with sequencing
-func fetchAndSave(url: String, to path: String) performs(FileSystem, Network) -> String {
+func fetchAndSave(url: String, to path: String) performs(FileSystem, Network) -> (String, String) {
   let data = perform { (net: inout Network) in
     net.fetch(url: url)
   }
   let existing = perform { (fs: inout FileSystem) in
     fs.readFile(at: path)
   }
-  // Verify sequencing: fetch happens before read, both results available
-  print("Fetched:", data)
-  print("Existing:", existing)
-  return data + " -> " + existing
+  return (data, existing)
 }
 
 func testNestedHandlers() {
   do {
     do {
       let result = fetchAndSave(url: "http://example.com", to: "out.txt")
-      print("Combined:", result)
+      _ = result
     } handle MockNet() as Network
   } handle MockFS() as FileSystem
 }
@@ -56,7 +55,7 @@ func testNestedHandlers() {
 func testMultiHandlerClause() {
   do {
     let result = fetchAndSave(url: "http://example.com", to: "out.txt")
-    print("Multi-handler:", result)
+    _ = result
   } handle MockFS() as FileSystem,
     MockNet() as Network
 }
@@ -77,7 +76,7 @@ func testMissingHandler() performs(Never) {
 func testHandleProvides() performs(Never) {
   do {
     let content = readFile(at: "test.txt")
-    print("Pure + handled:", content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
@@ -87,7 +86,7 @@ func processFiles(paths: [String]) performs(FileSystem) {
     let content = perform { (fs: inout FileSystem) in
       fs.readFile(at: path)
     }
-    print("Processing:", path, "->", content)
+    _ = (path, content)
   }
 }
 

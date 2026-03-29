@@ -71,6 +71,7 @@ public struct DefaultStringInterpolation: StringInterpolationProtocol, Sendable 
   /// You don't need to call this initializer directly. It's used by the
   /// compiler when interpreting string interpolations.
   @inlinable
+  @_semantics("performs_never")
   public init(literalCapacity: Int, interpolationCount: Int) {
     let capacityPerInterpolation = 2
     let initialCapacity = literalCapacity +
@@ -83,6 +84,7 @@ public struct DefaultStringInterpolation: StringInterpolationProtocol, Sendable 
   /// You don't need to call this method directly. It's used by the compiler
   /// when interpreting string interpolations.
   @inlinable
+  @_semantics("performs_never")
   public mutating func appendLiteral(_ literal: String) {
     literal.write(to: &self)
   }
@@ -105,6 +107,7 @@ public struct DefaultStringInterpolation: StringInterpolationProtocol, Sendable 
   ///     print(message)
   ///     // Prints "If one cookie costs 2 dollars, 3 cookies cost 6 dollars."
   @inlinable
+  @_semantics("performs_never")
   public mutating func appendInterpolation<T>(_ value: T)
     where T: TextOutputStreamable, T: CustomStringConvertible
   {
@@ -127,6 +130,7 @@ public struct DefaultStringInterpolation: StringInterpolationProtocol, Sendable 
   ///     print(message)
   ///     // Prints "If one cookie costs 2 dollars, 3 cookies cost 6 dollars."
   @inlinable
+  @_semantics("performs_never")
   public mutating func appendInterpolation<T>(_ value: T)
     where T: TextOutputStreamable
   {
@@ -151,6 +155,7 @@ public struct DefaultStringInterpolation: StringInterpolationProtocol, Sendable 
   ///     print(message)
   ///     // Prints "If one cookie costs 2 dollars, 3 cookies cost 6 dollars."
   @inlinable
+  @_semantics("performs_never")
   public mutating func appendInterpolation<T>(_ value: T)
     where T: CustomStringConvertible
   {
