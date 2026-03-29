@@ -3346,7 +3346,8 @@ NOTE(protocol_witness_rethrows_by_conformance_conflict,none,
 NOTE(protocol_witness_throws_conflict,none,
      "candidate throws, but protocol does not allow it", ())
 NOTE(protocol_witness_performs_conflict,none,
-     "candidate does not satisfy effect restriction 'performs(Never)' of protocol requirement", ())
+     "candidate does not satisfy performs(%0) effect restriction "
+     "of protocol requirement", (Type))
 NOTE(protocol_witness_not_objc,none,
      "candidate is explicitly '@nonobjc'", ())
 NOTE(protocol_witness_lifetime_conflict, none,

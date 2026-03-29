@@ -460,6 +460,15 @@ extension ASTGenVisitor {
       thrownType: self.generate(type: node.effectSpecifiers?.thrownError)
     )
     accessor.asDecl.attachParsedAttrs(attrs)
+    let performsLoc = self.generateSourceLoc(node.effectSpecifiers?.performsClause?.performsSpecifier)
+    if performsLoc.isValid {
+      let performedEffectTypes = node.effectSpecifiers?.performsClause?.types.map {
+        self.generate(type: $0.type)
+      } ?? []
+      accessor.setParsedPerforms(
+        performsLoc: performsLoc,
+        types: performedEffectTypes.lazy.bridgedArray(in: self))
+    }
     if let body = node.body {
       self.withDeclContext(accessor.asDeclContext) {
         accessor.setParsedBody(self.generate(codeBlock: body))

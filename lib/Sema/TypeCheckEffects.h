@@ -19,8 +19,11 @@
 #define SWIFT_SEMA_TYPECHECKEFFECTS_H
 
 #include "swift/AST/Type.h"
+#include "llvm/ADT/SmallVector.h"
 
 namespace swift {
+
+class ProtocolDecl;
 
 /// Classifies the result of a subtyping comparison between two thrown error
 /// types.
@@ -52,6 +55,12 @@ ThrownErrorSubtyping compareThrownErrorsForSubtyping(
 /// func map<T, E>(_ body: (Element) throws(E) -> T) throws(E) -> [T]
 /// \endcode
 bool isRethrowLikeTypedThrows(AbstractFunctionDecl *func);
+
+/// Decompose a performed-effects type into individual protocol decls.
+/// For a single protocol type, returns that protocol.
+/// For a ProtocolCompositionType, returns each member protocol.
+/// For Never, returns empty.
+SmallVector<ProtocolDecl *, 4> extractEffectProtocols(Type performedEffects);
 
 }
 

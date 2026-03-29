@@ -1505,6 +1505,10 @@ SWIFT_NAME("BridgedFuncDecl.setParsedPerforms(self:performsLoc:types:)")
 void BridgedFuncDecl_setParsedPerforms(BridgedFuncDecl decl,
     swift::SourceLoc performsLoc, BridgedArrayRef types);
 
+SWIFT_NAME("BridgedAccessorDecl.setParsedPerforms(self:performsLoc:types:)")
+void BridgedAccessorDecl_setParsedPerforms(BridgedAccessorDecl decl,
+    swift::SourceLoc performsLoc, BridgedArrayRef types);
+
 SWIFT_NAME(
     "BridgedConstructorDecl.createParsed(_:declContext:initKeywordLoc:"
     "failabilityMarkLoc:isIUO:genericParamList:parameterList:"

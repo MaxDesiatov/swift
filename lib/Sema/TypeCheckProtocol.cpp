@@ -589,6 +589,45 @@ checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
     return RequirementMatch(getStandinForAccessor(witness, AccessorKind::Get),
                             MatchKind::ThrowsConflict);
 
+  // Check performs on accessor declarations.
+  if (auto *reqGetter = req->getEffectfulGetAccessor()) {
+    if (reqGetter->hasPerforms()) {
+      auto *witnessGetter = witness->getEffectfulGetAccessor();
+      if (!witnessGetter || !witnessGetter->hasPerforms()) {
+        // Witness has no performs clause but requirement does.
+        if (witnessGetter &&
+            witnessGetter->getModuleContext()->isBuiltinModule())
+          ; // OK -- Builtin module is exempt.
+        else
+          return RequirementMatch(
+              getStandinForAccessor(witness, AccessorKind::Get),
+              MatchKind::PerformsConflict);
+      } else {
+        // Both have performs -- subset check.
+        auto reqFnTy = reqGetter->getMethodInterfaceType()
+                           ->getAs<AnyFunctionType>();
+        auto witnessFnTy = witnessGetter->getMethodInterfaceType()
+                               ->getAs<AnyFunctionType>();
+        if (reqFnTy && witnessFnTy) {
+          auto reqProtocols =
+              extractEffectProtocols(reqFnTy->getPerformedEffects());
+          auto witnessProtocols =
+              extractEffectProtocols(witnessFnTy->getPerformedEffects());
+          for (auto *wp : witnessProtocols) {
+            bool contained =
+                llvm::any_of(reqProtocols, [&](ProtocolDecl *rp) {
+                  return wp == rp || wp->inheritsFrom(rp);
+                });
+            if (!contained)
+              return RequirementMatch(
+                  getStandinForAccessor(witness, AccessorKind::Get),
+                  MatchKind::PerformsConflict);
+          }
+        }
+      }
+    }
+  }
+
   return std::nullopt; // OK
 }
 
@@ -989,33 +1028,39 @@ RequirementMatch swift::matchWitness(
     if (reqFunc->hasPerforms()) {
       auto *witnessFunc = dyn_cast<AbstractFunctionDecl>(witness);
       if (!witnessFunc || !witnessFunc->hasPerforms()) {
-        bool exempt = witnessFunc &&
-          (witnessFunc->getAttrs().hasSemanticsAttr("performs_never") ||
-           witnessFunc->isTransparent() ||
-           witnessFunc->getModuleContext()->isBuiltinModule());
-        if (!exempt)
+        // Builtin module functions are exempt (compiler intrinsics).
+        if (witnessFunc && witnessFunc->getModuleContext()->isBuiltinModule())
+          ; // OK
+        else
           return RequirementMatch(witness, MatchKind::PerformsConflict);
       } else {
-        // Both have performs — check containment via the resolved function type.
-        auto reqInterfaceTy = reqFunc->getInterfaceType();
-        if (auto reqFn = reqInterfaceTy->getAs<AnyFunctionType>()) {
-          // For member functions, peel the self parameter curry level.
-          if (reqFunc->getDeclContext()->isTypeContext())
-            if (auto innerFn = reqFn->getResult()->getAs<AnyFunctionType>())
-              reqFn = innerFn;
-          auto reqPerformedEffects = reqFn->getPerformedEffects();
-          if (reqPerformedEffects && reqPerformedEffects->isNever()) {
-            // performs(Never) requirement — witness must also be performs(Never)
-            auto witnessInterfaceTy = witnessFunc->getInterfaceType();
-            if (auto witnessFn = witnessInterfaceTy->getAs<AnyFunctionType>()) {
-              if (witnessFunc->getDeclContext()->isTypeContext())
-                if (auto innerFn = witnessFn->getResult()->getAs<AnyFunctionType>())
-                  witnessFn = innerFn;
-              auto witnessPerformedEffects = witnessFn->getPerformedEffects();
-              if (!witnessPerformedEffects || !witnessPerformedEffects->isNever())
-                return RequirementMatch(witness, MatchKind::PerformsConflict);
-            }
-          }
+        // Both have performs -- check that the witness's effect set is a
+        // subset of the requirement's. Each protocol in the witness's set
+        // must equal or inherit from at least one requirement protocol.
+        auto getMethodFnType = [](AbstractFunctionDecl *decl)
+            -> const AnyFunctionType * {
+          Type ty = decl->getDeclContext()->isTypeContext()
+                      ? decl->getMethodInterfaceType()
+                      : decl->getInterfaceType();
+          return ty->getAs<AnyFunctionType>();
+        };
+
+        auto reqFn = getMethodFnType(reqFunc);
+        auto witnessFn = getMethodFnType(witnessFunc);
+        assert(reqFn && witnessFn &&
+               "AbstractFunctionDecl should have function interface type");
+        auto reqPerformed = reqFn->getPerformedEffects();
+        auto witnessPerformed = witnessFn->getPerformedEffects();
+
+        auto reqProtocols = extractEffectProtocols(reqPerformed);
+        auto witnessProtocols = extractEffectProtocols(witnessPerformed);
+
+        for (auto *wp : witnessProtocols) {
+          bool contained = llvm::any_of(reqProtocols, [&](ProtocolDecl *rp) {
+            return wp == rp || wp->inheritsFrom(rp);
+          });
+          if (!contained)
+            return RequirementMatch(witness, MatchKind::PerformsConflict);
         }
       }
     }
@@ -3234,9 +3279,20 @@ diagnoseMatch(ModuleDecl *module, NormalProtocolConformance *conformance,
     diags.diagnose(match.Witness, diag::protocol_witness_throws_conflict);
     break;
 
-  case MatchKind::PerformsConflict:
-    diags.diagnose(match.Witness, diag::protocol_witness_performs_conflict);
+  case MatchKind::PerformsConflict: {
+    auto reqFunc = cast<AbstractFunctionDecl>(req);
+    Type fnTy = reqFunc->getDeclContext()->isTypeContext()
+                  ? reqFunc->getMethodInterfaceType()
+                  : reqFunc->getInterfaceType();
+    Type performedEffects;
+    if (auto fnType = fnTy->getAs<AnyFunctionType>())
+      performedEffects = fnType->getPerformedEffects();
+    // performedEffects is guaranteed non-null since PerformsConflict
+    // is only returned when req hasPerforms().
+    diags.diagnose(match.Witness, diag::protocol_witness_performs_conflict,
+                   performedEffects);
     break;
+  }
 
   case MatchKind::OptionalityConflict: {
     auto &adjustments = match.OptionalAdjustments;
