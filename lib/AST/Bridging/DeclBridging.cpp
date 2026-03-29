@@ -252,6 +252,17 @@ void BridgedFuncDecl_setParsedPerforms(BridgedFuncDecl cDecl,
   decl->setPerforms(performsLoc, types);
 }
 
+void BridgedAccessorDecl_setParsedPerforms(BridgedAccessorDecl cDecl,
+                                           SourceLoc performsLoc,
+                                           BridgedArrayRef cTypes) {
+  auto *decl = cDecl.unbridged();
+  ASTContext &ctx = decl->getASTContext();
+  auto types = ctx.AllocateTransform<TypeLoc>(
+      cTypes.unbridged<BridgedTypeRepr>(),
+      [](auto &e) { return TypeLoc(e.unbridged()); });
+  decl->setPerforms(performsLoc, types);
+}
+
 BridgedConstructorDecl BridgedConstructorDecl_createParsed(
     BridgedASTContext cContext, BridgedDeclContext cDeclContext,
     SourceLoc initKeywordLoc, SourceLoc failabilityMarkLoc, bool isIUO,

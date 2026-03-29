@@ -5038,7 +5038,7 @@ static ProtocolDecl *extractProtocolDecl(Type type) {
 /// For a ProtocolCompositionType, returns each member protocol.
 /// For Never, returns empty.
 static SmallVector<ProtocolDecl *, 4>
-extractEffectProtocols(Type performedEffects) {
+extractEffectProtocolsImpl(Type performedEffects) {
   SmallVector<ProtocolDecl *, 4> result;
   if (!performedEffects || performedEffects->isNever())
     return result;
@@ -5240,7 +5240,7 @@ public:
       NarrowingScope = std::move(savedNarrowingScope);
     };
 
-    auto closureEffects = extractEffectProtocols(fnTy->getPerformedEffects());
+    auto closureEffects = extractEffectProtocolsImpl(fnTy->getPerformedEffects());
     CallerEffects.emplace(std::move(closureEffects));
     CallerEffectSet.clear();
     NarrowingScope.clear();
@@ -5496,7 +5496,7 @@ public:
       return ShouldRecurse;
     }
 
-    auto calleeEffects = extractEffectProtocols(fnType->getPerformedEffects());
+    auto calleeEffects = extractEffectProtocolsImpl(fnType->getPerformedEffects());
     if (calleeEffects.empty())
       return ShouldRecurse;
 
@@ -5516,6 +5516,11 @@ public:
 };
 
 } // end anonymous namespace
+
+SmallVector<ProtocolDecl *, 4>
+swift::extractEffectProtocols(Type performedEffects) {
+  return extractEffectProtocolsImpl(performedEffects);
+}
 
 void TypeChecker::checkTopLevelEffects(TopLevelCodeDecl *code) {
   auto &ctx = code->getDeclContext()->getASTContext();
