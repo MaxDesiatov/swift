@@ -8,9 +8,11 @@ protocol Network: Effect {
   mutating func fetch(url: String) -> String
 }
 struct MockFS: FileSystem {
+  init() performs(Never) {}
   mutating func readFile(at path: String) -> String { "mock: \(path)" }
 }
 struct MockNet: Network {
+  init() performs(Never) {}
   mutating func fetch(url: String) -> String { "net: \(url)" }
 }
 
@@ -23,7 +25,7 @@ func createFSFromNet() performs(Network) -> MockFS { MockFS() } // expected-note
 
 func testBasic() {
   do {
-    print("inside do...handle")
+    _ = "inside do...handle"
   } handle MockFS() as FileSystem
 }
 
@@ -32,13 +34,13 @@ func testBasic() {
 struct NotFileSystem {}
 func testBadHandler() {
   do {
-    print("bad handler body")
+    _ = "bad handler body"
   } handle NotFileSystem() as FileSystem // expected-error {{handler of type 'NotFileSystem' does not conform to 'FileSystem'}}
 }
 
 func testNonEffect() {
   do {
-    print("non-effect body")
+    _ = "non-effect body"
   } handle "" as Equatable
   // expected-error @-1 {{type 'any Equatable' in handle clause does not conform to 'Effect'}}
 }
@@ -49,7 +51,7 @@ func testNonEffect() {
 func testNarrowing() {
   do {
     let content = readViaFS(path: "test.txt")
-    print("Narrowed:", content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
@@ -57,7 +59,7 @@ func testNarrowing() {
 func testNarrowingInNever() performs(Never) {
   do {
     let content = readViaFS(path: "test.txt")
-    print("Pure context, narrowed:", content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
@@ -71,7 +73,7 @@ func testNestedNarrowing() performs(Never) {
   do {
     do {
       let result = readAndFetch(path: "f.txt", url: "http://x.com")
-      print("Both handled:", result)
+      _ = result
     } handle MockFS() as FileSystem
   } handle MockNet() as Network
 }
@@ -88,7 +90,7 @@ func testPartialNarrowing() performs(Never) {
 func testMultipleHandlers() performs(Never) {
   do {
     let result = readAndFetch(path: "f.txt", url: "http://x.com")
-    print("Multi-handler:", result)
+    _ = result
   } handle MockFS() as FileSystem,
     MockNet() as Network
 }
@@ -98,7 +100,7 @@ func testSameEffectNested() performs(Never) {
   do {
     do {
       let content = readViaFS(path: "test.txt")
-      print("Inner handler:", content)
+      _ = content
     } handle MockFS() as FileSystem
   } handle MockFS() as FileSystem
 }
@@ -109,7 +111,7 @@ func testSameEffectNested() performs(Never) {
 func testHandlerExprPerforms() performs(Never) {
   do {
     let content = readViaFS(path: "test.txt")
-    print(content)
+    _ = content
   } handle createFSFromNet() as FileSystem
   // expected-error @-1 {{call to function that performs effects is not allowed in a 'performs(Never)' context}}
 }
@@ -119,7 +121,7 @@ func testHandlerExprPerforms() performs(Never) {
 func testLabeledDoHandle() {
   label: do {
     let content = readViaFS(path: "test.txt")
-    print(content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
@@ -134,7 +136,7 @@ func testEmptyDoHandle() {
 func testDoPerforms() performs(Never) {
   do performs(FileSystem) {
     let content = readViaFS(path: "test.txt")
-    print(content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
@@ -151,6 +153,6 @@ func testDoPerformsUndeclared() performs(Never) {
 func testDoPerformsMissingHandler() performs(Never) {
   do performs(FileSystem, Network) { // expected-error {{effect 'Network' declared in 'performs' clause has no handler}}
     let content = readViaFS(path: "test.txt")
-    print(content)
+    _ = content
   } handle MockFS() as FileSystem
 }

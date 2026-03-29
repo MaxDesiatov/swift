@@ -16,20 +16,20 @@ func testPerformOK() performs(FileSystem) {
   let content = perform { (fs: inout FileSystem) in
     fs.readFile(at: "test.txt")
   }
-  print("Read:", content)
+  _ = content
 }
 
 // ERROR: perform with wrong effect
 func testPerformWrongEffect() performs(Network) {
   perform { (fs: inout FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
-    print(fs.readFile(at: "test.txt"))
+    _ = fs.readFile(at: "test.txt")
   }
 }
 
 // ERROR: perform in unannotated function (no handler, no performs clause)
 func testPerformNoClause() {
   perform { (fs: inout FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
-    print(fs.readFile(at: "test.txt"))
+    _ = fs.readFile(at: "test.txt")
   }
 }
 
@@ -39,7 +39,7 @@ func testPerformNarrowed() {
     let content = perform { (fs: inout FileSystem) in
       fs.readFile(at: "test.txt")
     }
-    print("Narrowed read:", content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
@@ -52,7 +52,7 @@ func testPerformReturnType() performs(FileSystem) {
     fs.readFile(at: "b.txt")
   }
   // Sequencing: both reads happen, results are used
-  print("First:", first, "Second:", second)
+  _ = (first, second)
 }
 
 // Closure effect typing is the immediate next step after Phase 1.4 (Phase 1.4b).
@@ -73,14 +73,14 @@ func testPerformSomeNarrowed() {
     let content = perform { (fs: inout some FileSystem) in
       fs.readFile(at: "test.txt")
     }
-    print("Narrowed read:", content)
+    _ = content
   } handle MockFS() as FileSystem
 }
 
 // ERROR: 'some' perform with wrong effect
 func testPerformSomeWrongEffect() performs(Network) {
   perform { (fs: inout some FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
-    print(fs.readFile(at: "test.txt"))
+    _ = fs.readFile(at: "test.txt")
   }
 }
 
@@ -92,7 +92,7 @@ func testSomeStandaloneClosure() performs(FileSystem) {
 }
 
 // ERROR: 'some' in closure passed as argument (not perform)
-func takeClosure(_ f: (inout any FileSystem) -> Void) {}
+func takeClosure(_ f: (inout any FileSystem) -> Void) performs(Never) {}
 func testSomeClosureArg() performs(FileSystem) {
   takeClosure { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'perform' expressions}}
     print(fs)

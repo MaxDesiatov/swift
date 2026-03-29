@@ -3225,6 +3225,20 @@ ConstraintSystem::matchFunctionTypes(FunctionType *func1, FunctionType *func2,
     return getTypeMatchFailure(locator);
   }
 
+  // A function with performedEffects (e.g. performs(Never)) is a subtype of
+  // an unrestricted function (no performedEffects). The effect checker
+  // validates performs correctness separately. For Subtype/Conversion
+  // constraints, allow any performedEffects mismatch — closures inherit
+  // performs context from parameters, and the effect checker enforces
+  // restrictions on the caller side.
+  if (func1->hasPerformedEffects() != func2->hasPerformedEffects()) {
+    // For Bind/Equal, performedEffects must match exactly.
+    if (kind < ConstraintKind::Subtype) {
+      if (!shouldAttemptFixes())
+        return getTypeMatchFailure(locator);
+    }
+  }
+
   // Determine how we match up the input/result types.
   ConstraintKind subKind;
   switch (kind) {

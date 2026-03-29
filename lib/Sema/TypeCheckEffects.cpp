@@ -5427,8 +5427,22 @@ public:
     }
 
     auto *calleeDecl = fnRef.getFunction();
-    if (!calleeDecl->hasPerforms())
+    if (!calleeDecl->hasPerforms()) {
+      // In a restricted context, calling an unannotated function is an error
+      // because we can't verify its effects are safe. Functions marked
+      // @_semantics("performs_never") are exempt (known pure).
+      // Builtin functions are exempt (compiler intrinsics, inherently pure).
+      // @_transparent functions are exempt (thin wrappers inlined early).
+      if ((CallerEffects || !NarrowingScope.empty()) &&
+          !calleeDecl->getAttrs().hasSemanticsAttr("performs_never") &&
+          !calleeDecl->getModuleContext()->isBuiltinModule() &&
+          !calleeDecl->isTransparent()) {
+        Ctx.Diags.diagnose(E->getLoc(),
+                           diag::context_effect_call_unannotated_fn,
+                           calleeDecl->getName());
+      }
       return ShouldRecurse;
+    }
 
     const auto &calleeEffects = getOrResolveEffects(calleeDecl);
     if (!calleeEffects)
@@ -5541,6 +5555,17 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
     auto callerEffects = fn->hasPerforms()
         ? resolvePerformedEffects(fn, ctx)
         : std::nullopt;
+
+    // Validate async/throws compatibility with performs(Never).
+    if (callerEffects && callerEffects->empty()) {
+      if (fn->hasAsync())
+        ctx.Diags.diagnose(fn->getAsyncLoc(),
+                           diag::context_effect_async_performs_never);
+      if (fn->hasThrows() && !fn->getThrownTypeRepr())
+        ctx.Diags.diagnose(fn->getThrowsLoc(),
+                           diag::context_effect_untyped_throws_performs_never);
+    }
+
     CheckContextEffectsCoverage contextChecker(ctx, std::move(callerEffects));
     if (auto body = fn->getBody())
       body->walk(contextChecker);

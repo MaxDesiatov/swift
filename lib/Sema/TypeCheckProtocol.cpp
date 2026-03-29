@@ -984,6 +984,43 @@ RequirementMatch swift::matchWitness(
     }
   }
 
+  // Check performed effects: if requirement has performs, witness must too.
+  if (auto *reqFunc = dyn_cast<AbstractFunctionDecl>(req)) {
+    if (reqFunc->hasPerforms()) {
+      auto *witnessFunc = dyn_cast<AbstractFunctionDecl>(witness);
+      if (!witnessFunc || !witnessFunc->hasPerforms()) {
+        bool exempt = witnessFunc &&
+          (witnessFunc->getAttrs().hasSemanticsAttr("performs_never") ||
+           witnessFunc->isTransparent() ||
+           witnessFunc->getModuleContext()->isBuiltinModule());
+        if (!exempt)
+          return RequirementMatch(witness, MatchKind::PerformsConflict);
+      } else {
+        // Both have performs — check containment via the resolved function type.
+        auto reqInterfaceTy = reqFunc->getInterfaceType();
+        if (auto reqFn = reqInterfaceTy->getAs<AnyFunctionType>()) {
+          // For member functions, peel the self parameter curry level.
+          if (reqFunc->getDeclContext()->isTypeContext())
+            if (auto innerFn = reqFn->getResult()->getAs<AnyFunctionType>())
+              reqFn = innerFn;
+          auto reqPerformedEffects = reqFn->getPerformedEffects();
+          if (reqPerformedEffects && reqPerformedEffects->isNever()) {
+            // performs(Never) requirement — witness must also be performs(Never)
+            auto witnessInterfaceTy = witnessFunc->getInterfaceType();
+            if (auto witnessFn = witnessInterfaceTy->getAs<AnyFunctionType>()) {
+              if (witnessFunc->getDeclContext()->isTypeContext())
+                if (auto innerFn = witnessFn->getResult()->getAs<AnyFunctionType>())
+                  witnessFn = innerFn;
+              auto witnessPerformedEffects = witnessFn->getPerformedEffects();
+              if (!witnessPerformedEffects || !witnessPerformedEffects->isNever())
+                return RequirementMatch(witness, MatchKind::PerformsConflict);
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Check the thrown error types. This includes 'any Error' and 'Never' for
   // untyped throws and non-throwing cases as well.
   if (reqThrownError && witnessThrownError) {
@@ -3195,6 +3232,10 @@ diagnoseMatch(ModuleDecl *module, NormalProtocolConformance *conformance,
 
   case MatchKind::ThrowsConflict:
     diags.diagnose(match.Witness, diag::protocol_witness_throws_conflict);
+    break;
+
+  case MatchKind::PerformsConflict:
+    diags.diagnose(match.Witness, diag::protocol_witness_performs_conflict);
     break;
 
   case MatchKind::OptionalityConflict: {

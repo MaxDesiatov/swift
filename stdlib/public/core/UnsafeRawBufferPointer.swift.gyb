@@ -265,6 +265,7 @@ extension Unsafe${Mutable}RawBufferPointer: @unsafe ${Mutable}Collection {
   /// - Parameter i: The offset of the byte to access. `i` must be in the range
   ///   `0..<count`.
   @inlinable
+  @_semantics("performs_never")
   public subscript(i: Int) -> Element {
     get {
       _debugPrecondition(i >= 0)

@@ -45,9 +45,9 @@ func test5() performs(Never) {
   pureFunc()
 }
 
-// OK: performs(Never) calling unannotated
+// ERROR: performs(Never) calling unannotated
 func test6() performs(Never) {
-  unannotated()
+  unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'performs' clause}}
 }
 
 // OK: unannotated calling anything (no restriction)
@@ -93,7 +93,7 @@ func testRepeatedCalls() performs(FileSystem) {
 }
 
 // Autoclosure should be checked in caller's context
-func takeAutoclosure(_ x: @autoclosure () -> Void) {}
+func takeAutoclosure(_ x: @autoclosure () -> Void) performs(FileSystem) {}
 func testAutoclosure() performs(FileSystem) {
   takeAutoclosure(netOnly())
   // expected-error @-1 {{call to function that performs 'Network' is not allowed; enclosing function only performs 'FileSystem'}}
@@ -178,9 +178,11 @@ func testClosureCallInDoHandle(_ f: () performs(FileSystem) -> Void) performs(Ne
 }
 
 struct MockFS: FileSystem {
+  init() performs(Never) {}
   mutating func readFile(at path: String) -> String { "mock" }
 }
 struct MockNet: Network {
+  init() performs(Never) {}
   mutating func fetch(url: String) -> String { "mock" }
 }
 
@@ -232,7 +234,7 @@ func testEscapingClosureAllocates() performs(Never) {
 // Noescape closure doesn't allocate
 func takeNoescape(_ f: () performs(Never) -> Void) performs(Never) { f() }
 func testNoescapeClosure() performs(Never) {
-  takeNoescape { print("noescape") }  // OK
+  takeNoescape { _ = 42 }  // OK
 }
 
 // --- Function type performs validation ---

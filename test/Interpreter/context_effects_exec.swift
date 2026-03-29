@@ -9,9 +9,11 @@ protocol Network: Effect {
   mutating func fetch(url: String) -> String
 }
 struct MockFS: FileSystem {
+  init() performs(Never) {}
   mutating func readFile(at path: String) -> String { "mock: \(path)" }
 }
 struct MockNet: Network {
+  init() performs(Never) {}
   mutating func fetch(url: String) -> String { "net: \(url)" }
 }
 
@@ -26,11 +28,12 @@ func readFileSome(at path: String) performs(FileSystem) -> String {
 // CHECK-LABEL: testSomePerform
 func testSomePerform() {
   print("testSomePerform")
+  let content: String
   do {
-    let content = readFileSome(at: "test.txt")
-    // CHECK: mock: test.txt
-    print(content)
+    content = readFileSome(at: "test.txt")
   } handle MockFS() as FileSystem
+  // CHECK: mock: test.txt
+  print(content)
 }
 testSomePerform()
 
@@ -45,36 +48,38 @@ func readFileExistential(at path: String) performs(FileSystem) -> String {
 // CHECK-LABEL: testExistentialPerform
 func testExistentialPerform() {
   print("testExistentialPerform")
+  let content: String
   do {
-    let content = readFileExistential(at: "hello.txt")
-    // CHECK: mock: hello.txt
-    print(content)
+    content = readFileExistential(at: "hello.txt")
   } handle MockFS() as FileSystem
+  // CHECK: mock: hello.txt
+  print(content)
 }
 testExistentialPerform()
 
 // --- nested effects with two protocols ---
 
-func fetchAndSave(url: String, to path: String) performs(FileSystem, Network) -> String {
+func fetchAndSave(url: String, to path: String) performs(FileSystem, Network) -> (String, String) {
   let data = perform { (net: inout some Network) in
     net.fetch(url: url)
   }
   let existing = perform { (fs: inout some FileSystem) in
     fs.readFile(at: path)
   }
-  return data + " -> " + existing
+  return (data, existing)
 }
 
 // CHECK-LABEL: testNestedHandlers
 func testNestedHandlers() {
   print("testNestedHandlers")
+  let result: (String, String)
   do {
     do {
-      let result = fetchAndSave(url: "http://example.com", to: "out.txt")
-      // CHECK: net: http://example.com -> mock: out.txt
-      print(result)
+      result = fetchAndSave(url: "http://example.com", to: "out.txt")
     } handle MockNet() as Network
   } handle MockFS() as FileSystem
+  // CHECK: net: http://example.com -> mock: out.txt
+  print(result.0 + " -> " + result.1)
 }
 testNestedHandlers()
 
@@ -83,12 +88,13 @@ testNestedHandlers()
 // CHECK-LABEL: testMultiHandler
 func testMultiHandler() {
   print("testMultiHandler")
+  let result: (String, String)
   do {
-    let result = fetchAndSave(url: "http://api.test", to: "data.txt")
-    // CHECK: net: http://api.test -> mock: data.txt
-    print(result)
+    result = fetchAndSave(url: "http://api.test", to: "data.txt")
   } handle MockFS() as FileSystem,
     MockNet() as Network
+  // CHECK: net: http://api.test -> mock: data.txt
+  print(result.0 + " -> " + result.1)
 }
 testMultiHandler()
 
@@ -97,31 +103,35 @@ testMultiHandler()
 // CHECK-LABEL: testHandleProvides
 func testHandleProvides() {
   print("testHandleProvides")
+  let content: String
   do {
-    let content = readFileSome(at: "safe.txt")
-    // CHECK: mock: safe.txt
-    print(content)
+    content = readFileSome(at: "safe.txt")
   } handle MockFS() as FileSystem
+  // CHECK: mock: safe.txt
+  print(content)
 }
 testHandleProvides()
 
 // --- sequencing across multiple perform blocks ---
 
-func processFiles(paths: [String]) performs(FileSystem) {
-  for path in paths {
-    let content = perform { (fs: inout some FileSystem) in
-      fs.readFile(at: path)
-    }
-    print(path, "->", content)
+func readFileSomeAt(_ path: String) performs(FileSystem) -> String {
+  perform { (fs: inout some FileSystem) in
+    fs.readFile(at: path)
   }
 }
 
 // CHECK-LABEL: testSequencing
 func testSequencing() {
   print("testSequencing")
-  do {
-    processFiles(paths: ["a.txt", "b.txt", "c.txt"])
-  } handle MockFS() as FileSystem
+  var results: [String] = []
+  for path in ["a.txt", "b.txt", "c.txt"] {
+    let content: String
+    do {
+      content = readFileSomeAt(path)
+    } handle MockFS() as FileSystem
+    results.append("\(path) -> \(content)")
+  }
+  for r in results { print(r) }
 }
 // CHECK: a.txt -> mock: a.txt
 // CHECK: b.txt -> mock: b.txt

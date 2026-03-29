@@ -225,18 +225,19 @@ public struct ${Self}
 %   end
 
   @_transparent
-  public static func == (lhs: ${Self}, rhs: ${Self}) -> Bool {
+  public static func == (lhs: ${Self}, rhs: ${Self}) performs(Never) -> Bool {
     return Bool(Builtin.cmp_eq_Int${bits}(lhs._value, rhs._value))
   }
 
   @_transparent
-  public static func < (lhs: ${Self}, rhs: ${Self}) -> Bool {
+  public static func < (lhs: ${Self}, rhs: ${Self}) performs(Never) -> Bool {
     return Bool(Builtin.cmp_${u}lt_Int${bits}(lhs._value, rhs._value))
   }
 
 // See corresponding definitions in the FixedWidthInteger extension.
 %       for x in binaryArithmetic['Numeric'] + binaryArithmetic["BinaryInteger"][:1]:
   @_transparent
+  @_semantics("performs_never")
   public static func ${x.operator}=(lhs: inout ${Self}, rhs: ${Self}) {
 %   if x.kind == '/':
     // No LLVM primitives for checking overflow of division operations, so we
@@ -270,6 +271,7 @@ public struct ${Self}
 %       for x in chain(*binaryArithmetic.values()):
 
   @_transparent
+  @_semantics("performs_never")
   public func ${x.name}ReportingOverflow(
     ${x.firstArg} other: ${Self}
   ) -> (partialValue: ${Self}, overflow: Bool) {
@@ -662,6 +664,7 @@ extension ${Self} {
 %   for x in binaryBitwise + maskingShifts + list(chain(*binaryArithmetic.values())):
 
   @_transparent
+  @_semantics("performs_never")
   public static func ${x.operator}(lhs: ${Self}, rhs: ${Self}) -> ${Self} {
     var lhs = lhs
     lhs ${x.operator}= rhs
@@ -692,22 +695,22 @@ extension ${Self} {
   // but there's also a pretty straightforward workaround (adding an
   // explicit type).
   @_transparent @_alwaysEmitIntoClient
-  public static func !=(lhs: ${Self}, rhs: ${Self}) -> Bool {
+  public static func !=(lhs: ${Self}, rhs: ${Self}) performs(Never) -> Bool {
     return !(lhs == rhs)
   }
 
   @_transparent
-  public static func <= (lhs: ${Self}, rhs: ${Self}) -> Bool {
+  public static func <= (lhs: ${Self}, rhs: ${Self}) performs(Never) -> Bool {
     return !(rhs < lhs)
   }
 
   @_transparent
-  public static func >= (lhs: ${Self}, rhs: ${Self}) -> Bool {
+  public static func >= (lhs: ${Self}, rhs: ${Self}) performs(Never) -> Bool {
     return !(lhs < rhs)
   }
 
   @_transparent
-  public static func > (lhs: ${Self}, rhs: ${Self}) -> Bool {
+  public static func > (lhs: ${Self}, rhs: ${Self}) performs(Never) -> Bool {
     return rhs < lhs
   }
 }
