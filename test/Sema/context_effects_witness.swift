@@ -94,26 +94,26 @@ struct FSWitnessForAllocReq: AllocReqProtocol { // expected-error {{type 'FSWitn
   func work() performs(FileSystem) {} // expected-note {{candidate does not satisfy performs('AllocatorProtocol') effect restriction of protocol requirement}}
 }
 
-// === Step 6b: performs(A) witness for performs(A, B) requirement -- A ⊆ {A, B} → OK ===
+// === Step 6b: performs(A) witness for performs(A & B) requirement -- A ⊆ {A, B} → OK ===
 
 protocol NetworkProtocol: Effect {}
 
 protocol MultiEffectProtocol {
-  func work() performs(FileSystem, NetworkProtocol)
+  func work() performs(FileSystem & NetworkProtocol)
 }
 
 struct SingleEffectWitness: MultiEffectProtocol {
   func work() performs(FileSystem) {} // OK -- FileSystem ⊆ {FileSystem, NetworkProtocol}
 }
 
-// === Step 6c: performs(A, B) witness for performs(A) requirement -- {A, B} ⊄ {A} → ERROR ===
+// === Step 6c: performs(A & B) witness for performs(A) requirement -- {A, B} ⊄ {A} → ERROR ===
 
 protocol SingleEffectReq {
   func work() performs(FileSystem) // expected-note {{protocol requires function 'work()' with type '() performs(FileSystem) -> ()'}}
 }
 
 struct MultiEffectWitness: SingleEffectReq { // expected-error {{type 'MultiEffectWitness' does not conform to protocol 'SingleEffectReq'}} expected-note {{add stubs for conformance}}
-  func work() performs(FileSystem, NetworkProtocol) {} // expected-note {{candidate does not satisfy performs('FileSystem') effect restriction of protocol requirement}}
+  func work() performs(FileSystem & NetworkProtocol) {} // expected-note {{candidate does not satisfy performs('FileSystem') effect restriction of protocol requirement}}
 }
 
 // === Step 7: Default implementation without performs for performs(Never) requirement ===

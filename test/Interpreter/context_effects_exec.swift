@@ -59,7 +59,7 @@ testExistentialPerform()
 
 // --- nested effects with two protocols ---
 
-func fetchAndSave(url: String, to path: String) performs(FileSystem, Network) -> (String, String) {
+func fetchAndSave(url: String, to path: String) performs(FileSystem & Network) -> (String, String) {
   let data = perform { (net: inout some Network) in
     net.fetch(url: url)
   }

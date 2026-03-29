@@ -18,7 +18,7 @@ struct MockNet: Network {
 
 func readViaFS(path: String) performs(FileSystem) -> String { "" } // expected-note {{declared here}}
 func fetchViaNet(url: String) performs(Network) -> String { "" }
-func readAndFetch(path: String, url: String) performs(FileSystem, Network) -> String { "" } // expected-note 2 {{declared here}}
+func readAndFetch(path: String, url: String) performs(FileSystem & Network) -> String { "" } // expected-note 2 {{declared here}}
 func createFSFromNet() performs(Network) -> MockFS { MockFS() } // expected-note {{declared here}}
 
 // --- ASTGen bridging (no crash) ---
@@ -151,7 +151,7 @@ func testDoPerformsUndeclared() performs(Never) {
 
 // do performs(E) — missing handler for declared effect → error
 func testDoPerformsMissingHandler() performs(Never) {
-  do performs(FileSystem, Network) { // expected-error {{effect 'Network' declared in 'performs' clause has no handler}}
+  do performs(FileSystem & Network) { // expected-error {{effect 'Network' declared in 'performs' clause has no handler}}
     let content = readViaFS(path: "test.txt")
     _ = content
   } handle MockFS() as FileSystem
