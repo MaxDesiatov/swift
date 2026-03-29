@@ -113,7 +113,7 @@ struct MockNetwork: Network {
 }
 
 // OK: nested perform — inner closure IS a perform closure
-func testNestedPerform() performs(FileSystem, Network) {
+func testNestedPerform() performs(FileSystem & Network) {
   perform { (net: inout Network) in
     let _ = perform { (fs: inout some FileSystem) in
       fs.readFile(at: "test.txt")
@@ -130,7 +130,7 @@ func testPerformSomeNoInout() performs(FileSystem) {
 }
 
 // OK: perform with multiple 'some' params
-func testPerformMultipleSomeParams() performs(FileSystem, Network) {
+func testPerformMultipleSomeParams() performs(FileSystem & Network) {
   perform { (fs: inout some FileSystem) in
     print(fs.readFile(at: "test.txt"))
   }

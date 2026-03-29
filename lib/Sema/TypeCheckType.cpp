@@ -4769,29 +4769,43 @@ NeverNullType TypeResolver::resolveASTFunctionType(
 
       if (ty->isNever()) { sawNever = true; continue; }
 
-      // Validate: must be a protocol conforming to Effect.
-      if (inStage(TypeResolutionStage::Interface) &&
-          !options.contains(TypeResolutionFlags::SilenceDiagnostics)) {
-        ProtocolDecl *protoDecl = nullptr;
-        if (auto *pt = ty->getAs<ProtocolType>())
-          protoDecl = pt->getDecl();
-        else if (auto *et = ty->getAs<ExistentialType>())
-          if (auto *pt2 = et->getConstraintType()->getAs<ProtocolType>())
-            protoDecl = pt2->getDecl();
+      // Collect individual protocol types. A composition is decomposed.
+      SmallVector<Type, 2> memberTypes;
+      Type constraintTy = ty;
+      if (auto *et = ty->getAs<ExistentialType>())
+        constraintTy = et->getConstraintType();
 
-        if (!protoDecl ||
-            (effectProto && protoDecl != effectProto &&
-             !protoDecl->inheritsFrom(effectProto))) {
-          diagnoseInvalid(effectRepr, effectRepr->getLoc(),
-                          diag::context_effect_type_not_effect_protocol, ty);
-          continue;
-        }
+      if (auto *comp = constraintTy->getAs<ProtocolCompositionType>()) {
+        for (auto member : comp->getMembers())
+          memberTypes.push_back(member);
+      } else {
+        memberTypes.push_back(constraintTy);
       }
 
-      // Unwrap ExistentialType for ProtocolCompositionType::get compatibility.
-      if (auto *et = ty->getAs<ExistentialType>())
-        ty = et->getConstraintType();
-      effectTypes.push_back(ty);
+      // Validate each member conforms to Effect.
+      if (inStage(TypeResolutionStage::Interface) &&
+          !options.contains(TypeResolutionFlags::SilenceDiagnostics)) {
+        bool allValid = true;
+        for (auto memberTy : memberTypes) {
+          ProtocolDecl *protoDecl = nullptr;
+          if (auto *pt = memberTy->getAs<ProtocolType>())
+            protoDecl = pt->getDecl();
+
+          if (!protoDecl ||
+              (effectProto && protoDecl != effectProto &&
+               !protoDecl->inheritsFrom(effectProto))) {
+            diagnoseInvalid(effectRepr, effectRepr->getLoc(),
+                            diag::context_effect_type_not_effect_protocol,
+                            memberTy);
+            allValid = false;
+            break;
+          }
+        }
+        if (!allValid) continue;
+      }
+
+      for (auto memberTy : memberTypes)
+        effectTypes.push_back(memberTy);
     }
 
     if (sawNever && !effectTypes.empty()) {

@@ -11,7 +11,7 @@ protocol Network: Effect {
 
 func fsOnly() performs(FileSystem) {} // expected-note 2 {{declared here}}
 func netOnly() performs(Network) {} // expected-note 5 {{declared here}}
-func fsBoth() performs(FileSystem, Network) {} // expected-note 3 {{declared here}}
+func fsBoth() performs(FileSystem & Network) {} // expected-note 3 {{declared here}}
 func pureFunc() performs(Never) {}
 func unannotated() {}
 
@@ -21,12 +21,12 @@ func test1() performs(FileSystem) {
 }
 
 // OK: superset
-func test2() performs(FileSystem, Network) {
+func test2() performs(FileSystem & Network) {
   fsOnly()
 }
 
 // OK: superset calling both
-func test2b() performs(FileSystem, Network) {
+func test2b() performs(FileSystem & Network) {
   fsBoth()
 }
 
@@ -61,20 +61,20 @@ func test8() {
 }
 
 // ERROR: Never mixed with other types
-func testNeverMixed() performs(Never, FileSystem) {}
-// expected-error @-1 {{'Never' cannot be combined with other types in a 'performs' clause}}
+func testNeverMixed() performs(Never & FileSystem) {}
+// expected-error @-1 {{non-protocol, non-class type 'Never' cannot be used within a protocol-constrained type}}
 
 // ERROR: multiple missing effects — single compound error
 protocol Logging: Effect {}
-func needsThree() performs(FileSystem, Network, Logging) {} // expected-note {{declared here}}
+func needsThree() performs(FileSystem & Network & Logging) {} // expected-note {{declared here}}
 func testMultiMissing() performs(FileSystem) {
   needsThree()
-  // expected-error @-1 {{call to function that performs 'Network', 'Logging' is not allowed; enclosing function only performs 'FileSystem'}}
+  // expected-error @-1 {{call to function that performs 'Logging', 'Network' is not allowed; enclosing function only performs 'FileSystem'}}
 }
 
 // ERROR: non-Effect protocol in performs clause
 func testNonEffect() performs(Equatable) {}
-// expected-error @-1 {{type 'any Equatable' in 'performs' clause does not conform to 'Effect'}}
+// expected-error @-1 {{type 'Equatable' in 'performs' clause does not conform to 'Effect'}}
 
 // ERROR: non-protocol type in performs clause
 func testNonProtocol() performs(Int) {}
@@ -129,7 +129,7 @@ func testClosureBoundary() performs(FileSystem) {
 
 // Nested functions
 func testNestedFn() performs(FileSystem) {
-  func inner() performs(FileSystem, Network) { // expected-note {{declared here}}
+  func inner() performs(FileSystem & Network) { // expected-note {{declared here}}
     fsBoth()  // OK
   }
   inner()  // expected-error {{call to function that performs 'Network' is not allowed; enclosing function only performs 'FileSystem'}}
@@ -272,29 +272,29 @@ func testRestrictedFnType(_ f: () performs(Never) -> Void) performs(Never) {
 
 // Multiple effects in function type — missing one effect
 func testMultiEffectFnType(
-  _ f: () performs(FileSystem, Network) -> Void
+  _ f: () performs(FileSystem & Network) -> Void
 ) performs(FileSystem) {
   f() // expected-error {{performs 'Network'}}
 }
 
 // Superset context calling multi-effect closure — OK
 func testMultiEffectFnTypeOK(
-  _ f: () performs(FileSystem, Network) -> Void
-) performs(FileSystem, Network) {
+  _ f: () performs(FileSystem & Network) -> Void
+) performs(FileSystem & Network) {
   f()
 }
 
 // Superset caller calling subset closure — OK
 func testSupersetCallerSubsetClosure(
   _ f: () performs(FileSystem) -> Void
-) performs(FileSystem, Network) {
+) performs(FileSystem & Network) {
   f() // OK — caller has FileSystem + Network, closure only needs FileSystem
 }
 
 // --- Nested closure effects (validates save/restore) ---
 
-func testNestedClosureEffects() performs(FileSystem, Network) {
-  let outer: () performs(FileSystem, Network) -> Void = {
+func testNestedClosureEffects() performs(FileSystem & Network) {
+  let outer: () performs(FileSystem & Network) -> Void = {
     let inner: () performs(FileSystem) -> Void = {
       netOnly()  // expected-error {{performs 'Network'}}
     }
@@ -306,7 +306,7 @@ func testNestedClosureEffects() performs(FileSystem, Network) {
 
 // --- Multi-expression closure body ---
 
-func testClosureBodyMultiExpr() performs(FileSystem, Network) {
+func testClosureBodyMultiExpr() performs(FileSystem & Network) {
   let c: () performs(FileSystem) -> Void = {
     fsOnly()    // OK
     netOnly()   // expected-error {{performs 'Network'}}
@@ -318,7 +318,7 @@ func testClosureBodyMultiExpr() performs(FileSystem, Network) {
 // --- Closure with wider effects than enclosing function ---
 
 func testClosureWiderThanEnclosing() performs(FileSystem) {
-  let c: () performs(FileSystem, Network) -> Void = {
+  let c: () performs(FileSystem & Network) -> Void = {
     fsBoth()  // OK — closure has both FileSystem and Network
   }
   _ = c

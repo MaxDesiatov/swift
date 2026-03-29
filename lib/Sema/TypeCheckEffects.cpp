@@ -5094,26 +5094,41 @@ resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
       continue;
     }
 
-    // Extract the protocol decl from the resolved type.
-    ProtocolDecl *protoDecl = extractProtocolDecl(resolvedType);
+    // Collect individual protocol types. A composition is decomposed.
+    SmallVector<Type, 2> memberTypes;
+    Type constraintTy = resolvedType;
+    if (auto *et = resolvedType->getAs<ExistentialType>())
+      constraintTy = et->getConstraintType();
 
-    if (!protoDecl) {
-      ctx.Diags.diagnose(typeRepr->getLoc(),
-                         diag::context_effect_type_not_effect_protocol,
-                         resolvedType);
-      continue;
+    if (auto *comp = constraintTy->getAs<ProtocolCompositionType>()) {
+      for (auto member : comp->getMembers())
+        memberTypes.push_back(member);
+    } else {
+      memberTypes.push_back(constraintTy);
     }
 
-    // Validate that the protocol inherits from Effect.
-    if (protoDecl != effectProto &&
-        !protoDecl->inheritsFrom(effectProto)) {
-      ctx.Diags.diagnose(typeRepr->getLoc(),
-                         diag::context_effect_type_not_effect_protocol,
-                         resolvedType);
-      continue;
-    }
+    for (auto memberTy : memberTypes) {
+      // Extract the protocol decl from the member type.
+      ProtocolDecl *protoDecl = extractProtocolDecl(memberTy);
 
-    result.push_back(protoDecl);
+      if (!protoDecl) {
+        ctx.Diags.diagnose(typeRepr->getLoc(),
+                           diag::context_effect_type_not_effect_protocol,
+                           memberTy);
+        continue;
+      }
+
+      // Validate that the protocol inherits from Effect.
+      if (protoDecl != effectProto &&
+          !protoDecl->inheritsFrom(effectProto)) {
+        ctx.Diags.diagnose(typeRepr->getLoc(),
+                           diag::context_effect_type_not_effect_protocol,
+                           memberTy);
+        continue;
+      }
+
+      result.push_back(protoDecl);
+    }
   }
 
   if (sawNever && !result.empty()) {
@@ -5319,7 +5334,8 @@ public:
 
       for (auto &typeLoc : S->getPerformsTypes()) {
         auto type = typeLoc.getType();
-        if (auto *proto = extractProtocolDecl(type)) {
+        auto protos = extractEffectProtocolsImpl(type);
+        for (auto *proto : protos) {
           CallerEffects->push_back(proto);
           CallerEffectSet.insert(proto);
         }

@@ -923,16 +923,14 @@ ParserStatus Parser::parseEffectsSpecifiers(SourceLoc existingArrowLoc,
       }
       consumeToken();
 
-      // Parse the parenthesized type list: performs(Type1, Type2, ...)
+      // Parse the parenthesized type: performs(Type)
       SourceLoc lParenLoc;
       if (consumeIf(tok::l_paren, lParenLoc)) {
-        do {
-          ParserResult<TypeRepr> ty =
-              parseType(diag::expected_effect_type);
-          if (ty.getPtrOrNull())
-            performedEffects->push_back(ty.get());
-          status |= ty;
-        } while (consumeIf(tok::comma));
+        ParserResult<TypeRepr> ty =
+            parseType(diag::expected_effect_type);
+        if (ty.getPtrOrNull())
+          performedEffects->push_back(ty.get());
+        status |= ty;
 
         SourceLoc rParenLoc;
         parseMatchingToken(

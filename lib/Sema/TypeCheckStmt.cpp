@@ -1803,26 +1803,37 @@ public:
       typeLoc.setType(resolvedType);
 
       if (!resolvedType->hasError()) {
-        ProtocolDecl *protoDecl = nullptr;
-        if (auto *protoType = resolvedType->getAs<ProtocolType>())
-          protoDecl = protoType->getDecl();
-        else if (auto *existType = resolvedType->getAs<ExistentialType>())
-          if (auto *protoType2 =
-                  existType->getConstraintType()->getAs<ProtocolType>())
-            protoDecl = protoType2->getDecl();
+        // Collect individual protocol types. A composition is decomposed.
+        SmallVector<Type, 2> memberTypes;
+        Type constraintTy = resolvedType;
+        if (auto *et = resolvedType->getAs<ExistentialType>())
+          constraintTy = et->getConstraintType();
 
-        bool isEffectProtocol = false;
-        if (effectProto && protoDecl) {
-          isEffectProtocol = (protoDecl == effectProto ||
-                              protoDecl->inheritsFrom(effectProto));
+        if (auto *comp = constraintTy->getAs<ProtocolCompositionType>()) {
+          for (auto member : comp->getMembers())
+            memberTypes.push_back(member);
+        } else {
+          memberTypes.push_back(constraintTy);
         }
 
-        if (!isEffectProtocol) {
-          Ctx.Diags.diagnose(typeRepr->getLoc(),
-                             diag::context_effect_type_not_effect_protocol,
-                             resolvedType);
-        } else {
-          declaredEffects.insert(protoDecl);
+        for (auto memberTy : memberTypes) {
+          ProtocolDecl *protoDecl = nullptr;
+          if (auto *protoType = memberTy->getAs<ProtocolType>())
+            protoDecl = protoType->getDecl();
+
+          bool isEffectProtocol = false;
+          if (effectProto && protoDecl) {
+            isEffectProtocol = (protoDecl == effectProto ||
+                                protoDecl->inheritsFrom(effectProto));
+          }
+
+          if (!isEffectProtocol) {
+            Ctx.Diags.diagnose(typeRepr->getLoc(),
+                               diag::context_effect_type_not_effect_protocol,
+                               memberTy);
+          } else {
+            declaredEffects.insert(protoDecl);
+          }
         }
       }
     }

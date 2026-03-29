@@ -2207,7 +2207,7 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
     }
   }
 
-  // Parse optional 'performs(TypeList)' clause for do...handle.
+  // Parse optional 'performs(Type)' clause for do...handle.
   SourceLoc performsLoc;
   SmallVector<TypeRepr *, 2> performsTypes;
   if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
@@ -2215,13 +2215,11 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
     performsLoc = consumeToken();
     if (Tok.is(tok::l_paren)) {
       SourceLoc lParenLoc = consumeToken();
-      while (!Tok.is(tok::r_paren) && !Tok.is(tok::eof)) {
+      if (!Tok.is(tok::r_paren) && !Tok.is(tok::eof)) {
         ParserResult<TypeRepr> ty = parseType(diag::expected_type);
         status |= ty;
         if (ty.getPtrOrNull())
           performsTypes.push_back(ty.get());
-        if (!consumeIf(tok::comma))
-          break;
       }
       SourceLoc rParenLoc;
       parseMatchingToken(tok::r_paren, rParenLoc,

@@ -32,7 +32,7 @@ func testCallWithHandler() {
 }
 
 // Nested effects — two performs, two handles with sequencing
-func fetchAndSave(url: String, to path: String) performs(FileSystem, Network) -> (String, String) {
+func fetchAndSave(url: String, to path: String) performs(FileSystem & Network) -> (String, String) {
   let data = perform { (net: inout Network) in
     net.fetch(url: url)
   }
