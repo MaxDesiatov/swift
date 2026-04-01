@@ -631,8 +631,8 @@ public:
       recurse = asImpl().checkAutoClosure(autoclosure);
     } else if (auto awaitExpr = dyn_cast<AwaitExpr>(E)) {
       recurse = asImpl().checkAwait(awaitExpr);
-    } else if (auto performExpr = dyn_cast<PerformExpr>(E)) {
-      recurse = asImpl().checkPerform(performExpr);
+    } else if (auto withEffectExpr = dyn_cast<WithEffectExpr>(E)) {
+      recurse = asImpl().checkWithEffect(withEffectExpr);
     } else if (auto unsafeExpr = dyn_cast<UnsafeExpr>(E)) {
       recurse = asImpl().checkUnsafe(unsafeExpr);
     } else if (auto tryExpr = dyn_cast<TryExpr>(E)) {
@@ -767,7 +767,7 @@ public:
   }
 
   ShouldRecurse_t checkDoHandle(DoHandleStmt *S) { return ShouldRecurse; }
-  ShouldRecurse_t checkPerform(PerformExpr *E) { return ShouldRecurse; }
+  ShouldRecurse_t checkWithEffect(WithEffectExpr *E) { return ShouldRecurse; }
 
   ShouldRecurse_t checkForEach(ForEachStmt *S) {
     return ShouldRecurse;
@@ -5033,18 +5033,18 @@ static ProtocolDecl *extractProtocolDecl(Type type) {
 /// For a ProtocolCompositionType, returns each member protocol.
 /// For Never, returns empty.
 static SmallVector<ProtocolDecl *, 4>
-extractEffectProtocolsImpl(Type performedEffects) {
+extractEffectProtocolsImpl(Type declaredEffects) {
   SmallVector<ProtocolDecl *, 4> result;
-  if (!performedEffects || performedEffects->isNever())
+  if (!declaredEffects || declaredEffects->isNever())
     return result;
 
   // Unwrap ExistentialType if present.
-  if (auto *et = performedEffects->getAs<ExistentialType>())
-    performedEffects = et->getConstraintType();
+  if (auto *et = declaredEffects->getAs<ExistentialType>())
+    declaredEffects = et->getConstraintType();
 
-  if (auto *proto = extractProtocolDecl(performedEffects)) {
+  if (auto *proto = extractProtocolDecl(declaredEffects)) {
     result.push_back(proto);
-  } else if (auto *comp = performedEffects->getAs<ProtocolCompositionType>()) {
+  } else if (auto *comp = declaredEffects->getAs<ProtocolCompositionType>()) {
     for (auto member : comp->getMembers()) {
       if (auto *proto = extractProtocolDecl(member))
         result.push_back(proto);
@@ -5058,22 +5058,22 @@ extractEffectProtocolsImpl(Type performedEffects) {
 /// Returns an empty vector for performs(Never).
 /// Returns a non-empty vector of the declared effect protocols otherwise.
 static std::optional<SmallVector<ProtocolDecl *, 4>>
-resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
-  if (!fn->hasPerforms())
+resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
+  if (!fn->hasEffects())
     return std::nullopt;
 
-  auto performedEffects = fn->getPerformedEffects();
+  auto declaredEffects = fn->getDeclaredEffects();
   SmallVector<ProtocolDecl *, 4> result;
   bool sawNever = false;
 
   auto *effectProto = ctx.getProtocol(KnownProtocolKind::Effect);
   if (!effectProto) {
-    ctx.Diags.diagnose(fn->getPerformsLoc(),
+    ctx.Diags.diagnose(fn->getEffectsLoc(),
                        diag::context_effect_missing_effect_protocol);
     return std::nullopt;
   }
 
-  for (auto &typeLoc : performedEffects) {
+  for (auto &typeLoc : declaredEffects) {
     auto *typeRepr = typeLoc.getTypeRepr();
     if (!typeRepr)
       continue;
@@ -5132,7 +5132,7 @@ resolvePerformedEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
   }
 
   if (sawNever && !result.empty()) {
-    ctx.Diags.diagnose(fn->getPerformsLoc(),
+    ctx.Diags.diagnose(fn->getEffectsLoc(),
                        diag::context_effect_never_with_other_types);
     result.clear(); // Treat as performs(Never)
   }
@@ -5167,15 +5167,15 @@ class CheckContextEffectsCoverage
   /// Stack of narrowing scopes introduced by do...handle blocks.
   SmallVector<llvm::SmallPtrSet<ProtocolDecl *, 4>, 2> NarrowingScope;
 
-  /// Closures that are direct sub-expressions of PerformExpr.
-  llvm::SmallPtrSet<ClosureExpr *, 4> PerformClosures;
+  /// Closures that are direct sub-expressions of WithEffectExpr.
+  llvm::SmallPtrSet<ClosureExpr *, 4> WithEffectClosures;
 
   const std::optional<SmallVector<ProtocolDecl *, 4>> &
   getOrResolveEffects(AbstractFunctionDecl *fn) {
     auto it = ResolvedCache.find(fn);
     if (it != ResolvedCache.end())
       return it->second;
-    return ResolvedCache.insert({fn, resolvePerformedEffects(fn, Ctx)})
+    return ResolvedCache.insert({fn, resolveDeclaredEffects(fn, Ctx)})
         .first->second;
   }
 
@@ -5215,7 +5215,7 @@ public:
 
     // Check for 'some' in non-perform closure parameters.
     // Skip if the closure failed type-checking to avoid cascading diagnostics.
-    if (!PerformClosures.count(E) && closureTy && !closureTy->hasError()) {
+    if (!WithEffectClosures.count(E) && closureTy && !closureTy->hasError()) {
       if (auto *params = E->getParameters()) {
         for (auto *param : *params) {
           auto *repr = param->getTypeRepr();
@@ -5226,7 +5226,7 @@ public:
             repr = spec->getBase();
           if (isa<OpaqueReturnTypeRepr>(repr)) {
             Ctx.Diags.diagnose(repr->getLoc(),
-                               diag::context_effect_some_not_in_perform);
+                               diag::context_effect_some_not_in_witheffect);
             break;
           }
         }
@@ -5238,7 +5238,7 @@ public:
     if (!closureTy)
       return ShouldNotRecurse;
     auto *fnTy = closureTy->getAs<FunctionType>();
-    if (!fnTy || !fnTy->hasPerformedEffects())
+    if (!fnTy || !fnTy->hasDeclaredEffects())
       return ShouldNotRecurse;
 
     auto savedCallerEffects = std::move(CallerEffects);
@@ -5250,7 +5250,7 @@ public:
       NarrowingScope = std::move(savedNarrowingScope);
     };
 
-    auto closureEffects = extractEffectProtocolsImpl(fnTy->getPerformedEffects());
+    auto closureEffects = extractEffectProtocolsImpl(fnTy->getDeclaredEffects());
     CallerEffects.emplace(std::move(closureEffects));
     CallerEffectSet.clear();
     NarrowingScope.clear();
@@ -5316,7 +5316,7 @@ public:
   ShouldRecurse_t checkDoCatch(DoCatchStmt *) { return ShouldRecurse; }
 
   ShouldRecurse_t checkDoHandle(DoHandleStmt *S) {
-    if (S->hasPerformsClause()) {
+    if (S->hasEffectsClause()) {
       // Save current state — the performs clause creates an isolated context.
       auto savedCallerEffects = std::move(CallerEffects);
       auto savedCallerEffectSet = std::move(CallerEffectSet);
@@ -5332,7 +5332,7 @@ public:
       CallerEffectSet.clear();
       NarrowingScope.clear();
 
-      for (auto &typeLoc : S->getPerformsTypes()) {
+      for (auto &typeLoc : S->getEffectsTypes()) {
         auto type = typeLoc.getType();
         auto protos = extractEffectProtocolsImpl(type);
         for (auto *proto : protos) {
@@ -5370,13 +5370,13 @@ public:
   // perform always requires the effect to be explicitly available. perform
   // is a direct effect invocation site (like throw), while calling a
   // performs function just propagates the requirement.
-  ShouldRecurse_t checkPerform(PerformExpr *E) {
+  ShouldRecurse_t checkWithEffect(WithEffectExpr *E) {
     // Extract the effect protocol from the closure parameter type.
     auto *closure = dyn_cast_or_null<ClosureExpr>(E->getSubExpr());
     if (!closure)
       return ShouldRecurse;
 
-    PerformClosures.insert(closure);
+    WithEffectClosures.insert(closure);
 
     auto *params = closure->getParameters();
     if (!params || params->size() == 0)
@@ -5394,8 +5394,8 @@ public:
       return ShouldRecurse;
 
     if (!isEffectAvailable(proto)) {
-      Ctx.Diags.diagnose(E->getPerformLoc(),
-                         diag::context_effect_perform_not_available,
+      Ctx.Diags.diagnose(E->getWithEffectLoc(),
+                         diag::context_effect_witheffect_not_available,
                          proto->getName());
     }
     return ShouldRecurse;
@@ -5406,7 +5406,7 @@ public:
                               ArrayRef<ProtocolDecl *> missing,
                               AbstractFunctionDecl *calleeDecl = nullptr) {
     if (CallerEffects && CallerEffects->empty() && NarrowingScope.empty()) {
-      Ctx.Diags.diagnose(loc, diag::context_effect_in_performs_never);
+      Ctx.Diags.diagnose(loc, diag::context_effect_in_effects_never);
     } else {
       SmallVector<ProtocolDecl *, 4> available;
       if (CallerEffects)
@@ -5422,7 +5422,7 @@ public:
     }
     if (calleeDecl)
       Ctx.Diags.diagnose(calleeDecl->getLoc(),
-                         diag::callee_declared_performs_here,
+                         diag::callee_declared_effects_here,
                          calleeDecl->getName());
   }
 
@@ -5443,14 +5443,14 @@ public:
     }
 
     auto *calleeDecl = fnRef.getFunction();
-    if (!calleeDecl->hasPerforms()) {
+    if (!calleeDecl->hasEffects()) {
       // In a restricted context, calling an unannotated function is an error
       // because we can't verify its effects are safe. Functions marked
-      // @_semantics("performs_never") are exempt (known pure).
+      // @_semantics("effects_never") are exempt (known pure).
       // Builtin functions are exempt (compiler intrinsics, inherently pure).
       // @_transparent functions are exempt (thin wrappers inlined early).
       if ((CallerEffects || !NarrowingScope.empty()) &&
-          !calleeDecl->getAttrs().hasSemanticsAttr("performs_never") &&
+          !calleeDecl->getAttrs().hasSemanticsAttr("effects_never") &&
           !calleeDecl->getModuleContext()->isBuiltinModule() &&
           !calleeDecl->isTransparent()) {
         Ctx.Diags.diagnose(E->getLoc(),
@@ -5500,14 +5500,14 @@ public:
     if (!fnType)
       return ShouldRecurse;
 
-    if (!fnType->hasPerformedEffects()) {
+    if (!fnType->hasDeclaredEffects()) {
       // Function type without performs clause in a restricted context.
       Ctx.Diags.diagnose(E->getLoc(),
                          diag::context_effect_call_unrestricted_fn_type);
       return ShouldRecurse;
     }
 
-    auto calleeEffects = extractEffectProtocolsImpl(fnType->getPerformedEffects());
+    auto calleeEffects = extractEffectProtocolsImpl(fnType->getDeclaredEffects());
     if (calleeEffects.empty())
       return ShouldRecurse;
 
@@ -5529,8 +5529,8 @@ public:
 } // end anonymous namespace
 
 SmallVector<ProtocolDecl *, 4>
-swift::extractEffectProtocols(Type performedEffects) {
-  return extractEffectProtocolsImpl(performedEffects);
+swift::extractEffectProtocols(Type declaredEffects) {
+  return extractEffectProtocolsImpl(declaredEffects);
 }
 
 void TypeChecker::checkTopLevelEffects(TopLevelCodeDecl *code) {
@@ -5573,18 +5573,18 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
   // is enabled (not just those with performs clauses), because do...handle
   // blocks can introduce effect narrowing in unannotated functions.
   if (ctx.LangOpts.hasFeature(Feature::ContextEffects)) {
-    auto callerEffects = fn->hasPerforms()
-        ? resolvePerformedEffects(fn, ctx)
+    auto callerEffects = fn->hasEffects()
+        ? resolveDeclaredEffects(fn, ctx)
         : std::nullopt;
 
     // Validate async/throws compatibility with performs(Never).
     if (callerEffects && callerEffects->empty()) {
       if (fn->hasAsync())
         ctx.Diags.diagnose(fn->getAsyncLoc(),
-                           diag::context_effect_async_performs_never);
+                           diag::context_effect_async_effects_never);
       if (fn->hasThrows() && !fn->getThrownTypeRepr())
         ctx.Diags.diagnose(fn->getThrowsLoc(),
-                           diag::context_effect_untyped_throws_performs_never);
+                           diag::context_effect_untyped_throws_effects_never);
     }
 
     CheckContextEffectsCoverage contextChecker(ctx, std::move(callerEffects));

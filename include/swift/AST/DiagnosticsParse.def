@@ -1725,13 +1725,13 @@ ERROR(expected_rparen_after_thrown_error_type,none,
 ERROR(rethrows_with_thrown_error,none,
       "'rethrows' cannot be combined with a specific thrown error type", ())
 
-// Context effects (performs)
+// Context effects (effects)
 ERROR(expected_effect_type,none,
-      "expected effect type in 'performs' clause", ())
+      "expected effect type in 'effects' clause", ())
 ERROR(expected_rparen_after_effect_type,none,
       "expected ')' after effect type list", ())
-ERROR(performs_after_async_or_throws,none,
-      "'performs' must appear before '%0'", (StringRef))
+ERROR(effects_after_async_or_throws,none,
+      "'effects' must appear before '%0'", (StringRef))
 ERROR(expected_effect_type_after_handle,none,
       "expected effect type after 'as' in 'handle' clause", ())
 ERROR(expected_as_after_handle_expr,none,

@@ -9258,14 +9258,14 @@ ParserResult<FuncDecl> Parser::parseDeclFunc(SourceLoc StaticLoc,
   SourceLoc throwsLoc;
   bool rethrows;
   TypeRepr *thrownTy = nullptr;
-  SourceLoc performsLoc;
-  SmallVector<TypeRepr *, 2> performedEffects;
+  SourceLoc effectsLoc;
+  SmallVector<TypeRepr *, 2> declaredEffects;
   Status |= parseFunctionSignature(SimpleName, FullName, BodyParams,
                                    DefaultArgs,
                                    asyncLoc, reasync,
                                    throwsLoc, rethrows, thrownTy,
                                    FuncRetTy,
-                                   &performsLoc, &performedEffects);
+                                   &effectsLoc, &declaredEffects);
   if (Status.hasCodeCompletion() && !CodeCompletionCallbacks) {
     // Trigger delayed parsing, no need to continue.
     return Status;
@@ -9296,11 +9296,11 @@ ParserResult<FuncDecl> Parser::parseDeclFunc(SourceLoc StaticLoc,
                               CurDeclContext);
 
   // Set the performs clause if present.
-  if (performsLoc.isValid()) {
+  if (effectsLoc.isValid()) {
     SmallVector<TypeLoc, 2> effectTypeLocs;
-    for (auto *repr : performedEffects)
+    for (auto *repr : declaredEffects)
       effectTypeLocs.push_back(TypeLoc(repr));
-    FD->setPerforms(performsLoc,
+    FD->setEffects(effectsLoc,
                     Context.AllocateCopy(effectTypeLocs));
   }
 
@@ -10317,15 +10317,15 @@ Parser::parseDeclInit(ParseDeclOptions Flags, DeclAttributes &Attributes) {
   SourceLoc throwsLoc;
   bool rethrows;
   TypeRepr *thrownTy = nullptr;
-  SourceLoc performsLoc;
-  SmallVector<TypeRepr *, 2> performedEffects;
+  SourceLoc effectsLoc;
+  SmallVector<TypeRepr *, 2> declaredEffects;
   Status |= parseFunctionSignature(DeclBaseName::createConstructor(), FullName,
                                    BodyParams,
                                    DefaultArgs,
                                    asyncLoc, reasync,
                                    throwsLoc, rethrows, thrownTy,
                                    FuncRetTy,
-                                   &performsLoc, &performedEffects);
+                                   &effectsLoc, &declaredEffects);
   if (Status.hasCodeCompletion() && !CodeCompletionCallbacks) {
     // Trigger delayed parsing, no need to continue.
     return Status;
@@ -10375,11 +10375,11 @@ Parser::parseDeclInit(ParseDeclOptions Flags, DeclAttributes &Attributes) {
   CD->attachParsedAttrs(Attributes);
 
   // Set the performs clause if present.
-  if (performsLoc.isValid()) {
+  if (effectsLoc.isValid()) {
     SmallVector<TypeLoc, 2> effectTypeLocs;
-    for (auto *repr : performedEffects)
+    for (auto *repr : declaredEffects)
       effectTypeLocs.push_back(TypeLoc(repr));
-    CD->setPerforms(performsLoc,
+    CD->setEffects(effectsLoc,
                     Context.AllocateCopy(effectTypeLocs));
   }
 

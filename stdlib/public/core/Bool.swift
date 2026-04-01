@@ -69,13 +69,13 @@ public struct Bool: Sendable {
   /// Do not call this initializer directly. Instead, use the Boolean literal
   /// `false` to create a new `Bool` instance.
   @_transparent
-  public init() performs(Never) {
+  public init() effects(Never) {
     let zero: Int8 = 0
     self._value = Builtin.trunc_Int8_Int1(zero._value)
   }
 
   @_transparent
-  public init(_ _v: Builtin.Int1) performs(Never) { self._value = _v }
+  public init(_ _v: Builtin.Int1) effects(Never) { self._value = _v }
   
   /// Creates an instance equal to the given Boolean value.
   ///
@@ -236,7 +236,7 @@ extension Bool {
   ///
   /// - Parameter a: The Boolean value to negate.
   @_transparent
-  public static prefix func ! (a: Bool) performs(Never) -> Bool {
+  public static prefix func ! (a: Bool) effects(Never) -> Bool {
     return Bool(Builtin.xor_Int1(a._value, true._value))
   }
 }
@@ -276,7 +276,7 @@ extension Bool {
   ///   - rhs: The right-hand side of the operation.
   @_transparent
   @inline(__always)
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func && (lhs: Bool, rhs: @autoclosure () throws -> Bool) rethrows
       -> Bool {
     return lhs ? try rhs() : false
@@ -317,7 +317,7 @@ extension Bool {
   ///   - rhs: The right-hand side of the operation.
   @_transparent
   @inline(__always)
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func || (lhs: Bool, rhs: @autoclosure () throws -> Bool) rethrows
       -> Bool {
     return lhs ? true : try rhs()

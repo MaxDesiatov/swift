@@ -4193,8 +4193,8 @@ public:
     printFoot();
   }
 
-  void visitPerformExpr(PerformExpr *E, Label label) {
-    printCommon(E, "perform_expr", label);
+  void visitWithEffectExpr(WithEffectExpr *E, Label label) {
+    printCommon(E, "with_effect_expr", label);
     printRec(E->getSubExpr(), Label::optional("sub_expr"));
     printFoot();
   }

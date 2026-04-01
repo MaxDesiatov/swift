@@ -1501,13 +1501,13 @@ BridgedFuncDecl BridgedFuncDecl_createParsed(
     BridgedNullableTypeRepr returnType,
     BridgedNullableTrailingWhereClause opaqueGenericWhereClause);
 
-SWIFT_NAME("BridgedFuncDecl.setParsedPerforms(self:performsLoc:types:)")
-void BridgedFuncDecl_setParsedPerforms(BridgedFuncDecl decl,
-    swift::SourceLoc performsLoc, BridgedArrayRef types);
+SWIFT_NAME("BridgedFuncDecl.setParsedEffects(self:effectsLoc:types:)")
+void BridgedFuncDecl_setParsedEffects(BridgedFuncDecl decl,
+    swift::SourceLoc effectsLoc, BridgedArrayRef types);
 
-SWIFT_NAME("BridgedAccessorDecl.setParsedPerforms(self:performsLoc:types:)")
-void BridgedAccessorDecl_setParsedPerforms(BridgedAccessorDecl decl,
-    swift::SourceLoc performsLoc, BridgedArrayRef types);
+SWIFT_NAME("BridgedAccessorDecl.setParsedEffects(self:effectsLoc:types:)")
+void BridgedAccessorDecl_setParsedEffects(BridgedAccessorDecl decl,
+    swift::SourceLoc effectsLoc, BridgedArrayRef types);
 
 SWIFT_NAME(
     "BridgedConstructorDecl.createParsed(_:declContext:initKeywordLoc:"
@@ -1522,9 +1522,9 @@ BridgedConstructorDecl BridgedConstructorDecl_createParsed(
     BridgedNullableTrailingWhereClause genericWhereClause);
 
 SWIFT_NAME(
-    "BridgedConstructorDecl.setParsedPerforms(self:performsLoc:types:)")
-void BridgedConstructorDecl_setParsedPerforms(BridgedConstructorDecl decl,
-    swift::SourceLoc performsLoc, BridgedArrayRef types);
+    "BridgedConstructorDecl.setParsedEffects(self:effectsLoc:types:)")
+void BridgedConstructorDecl_setParsedEffects(BridgedConstructorDecl decl,
+    swift::SourceLoc effectsLoc, BridgedArrayRef types);
 
 SWIFT_NAME(
     "BridgedDestructorDecl.createParsed(_:declContext:deinitKeywordLoc:)")
@@ -1862,10 +1862,10 @@ BridgedAwaitExpr BridgedAwaitExpr_createParsed(BridgedASTContext cContext,
                                                swift::SourceLoc awaitLoc,
                                                BridgedExpr cSubExpr);
 
-SWIFT_NAME("BridgedPerformExpr.createParsed(_:performLoc:subExpr:)")
-BridgedPerformExpr BridgedPerformExpr_createParsed(
+SWIFT_NAME("BridgedWithEffectExpr.createParsed(_:withEffectLoc:subExpr:)")
+BridgedWithEffectExpr BridgedWithEffectExpr_createParsed(
     BridgedASTContext cContext,
-    swift::SourceLoc performLoc,
+    swift::SourceLoc withEffectLoc,
     BridgedExpr cSubExpr);
 
 SWIFT_NAME("BridgedBindOptionalExpr.createParsed(_:subExpr:questionLoc:)")
@@ -2481,15 +2481,15 @@ struct BridgedHandleClauseInfo {
 };
 
 SWIFT_NAME("BridgedDoHandleStmt.createParsed(_:labelInfo:doLoc:body:"
-           "handleClauses:performsLoc:performsTypes:)")
+           "handleClauses:effectsLoc:effectsTypes:)")
 BridgedDoHandleStmt BridgedDoHandleStmt_createParsed(
     BridgedASTContext cContext,
     BridgedLabeledStmtInfo cLabelInfo,
     swift::SourceLoc doLoc,
     BridgedBraceStmt cBody,
     BridgedArrayRef cHandleClauses,
-    swift::SourceLoc performsLoc,
-    BridgedArrayRef cPerformsTypes);
+    swift::SourceLoc effectsLoc,
+    BridgedArrayRef cEffectsTypes);
 
 SWIFT_NAME("BridgedFallthroughStmt.createParsed(loc:declContext:)")
 BridgedFallthroughStmt
@@ -2721,13 +2721,13 @@ BridgedErrorTypeRepr BridgedErrorTypeRepr_create(BridgedASTContext cContext,
                                                  swift::SourceRange range);
 
 SWIFT_NAME("BridgedFunctionTypeRepr.createParsed(_:argsType:asyncLoc:throwsLoc:"
-           "thrownType:arrowLoc:resultType:performsLoc:performsTypes:)")
+           "thrownType:arrowLoc:resultType:effectsLoc:effectsTypes:)")
 BridgedFunctionTypeRepr BridgedFunctionTypeRepr_createParsed(
     BridgedASTContext cContext, BridgedTypeRepr argsTy,
     swift::SourceLoc asyncLoc, swift::SourceLoc throwsLoc,
     BridgedNullableTypeRepr thrownType, swift::SourceLoc arrowLoc,
     BridgedTypeRepr resultType,
-    swift::SourceLoc performsLoc, BridgedArrayRef performsTypes);
+    swift::SourceLoc effectsLoc, BridgedArrayRef effectsTypes);
 
 SWIFT_NAME("BridgedUnqualifiedIdentTypeRepr.createParsed(_:name:nameLoc:"
            "genericArgs:leftAngleLoc:rightAngleLoc:)")

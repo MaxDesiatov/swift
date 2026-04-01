@@ -830,7 +830,7 @@ public:
     return Substitutions;
   }
 
-  /// Extend Substitutions to cover handler generic params from performed
+  /// Extend Substitutions to cover handler generic params from declared
   /// effects. Returns an ordered list of handler (ProtocolDecl*, SILValue)
   /// pairs for the handler args that need to be passed.
   SmallVector<std::pair<ProtocolDecl *, SILValue>, 2>
@@ -5339,7 +5339,7 @@ class CallEmission {
   bool implicitlyThrows;
   bool canUnwind;
 
-  /// Handler args for performed effects, filled by applyNormalCall.
+  /// Handler args for declared effects, filled by applyNormalCall.
   SmallVector<std::pair<ProtocolDecl *, SILValue>, 2> handlerArgs;
 
 public:
@@ -5707,7 +5707,7 @@ RValue CallEmission::applyNormalCall(SGFContext C) {
   auto origFormalType = callee.getOrigFormalType();
   auto lifetimeDependencies = origFormalType.getLifetimeDependencies();
 
-  // Extend substitutions for handler params from performed effects.
+  // Extend substitutions for handler params from declared effects.
   handlerArgs = callee.extendSubstitutionsForHandlers(SGF);
 
   // Get the callee type information.
@@ -5997,7 +5997,7 @@ ApplyOptions CallEmission::emitArgumentsForNormalApply(
       paramLowering.claimImplicitParameters();
     }
 
-    // Claim handler implicit params for performed effects.
+    // Claim handler implicit params for declared effects.
     for (unsigned i = 0; i < handlerArgs.size(); ++i)
       paramLowering.claimImplicitParameters();
 
@@ -6050,7 +6050,7 @@ ApplyOptions CallEmission::emitArgumentsForNormalApply(
         SGF.B.convertToImplicitActor(callSite->Loc, erasedActor));
   }
 
-  // Emit handler args for performed effects.
+  // Emit handler args for declared effects.
   if (!handlerArgs.empty()) {
     args.push_back({});
     for (auto &[proto, handlerAddr] : handlerArgs) {

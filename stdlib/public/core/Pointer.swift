@@ -124,7 +124,7 @@ extension _Pointer /*: Equatable */ {
   /// - Returns: `true` if `lhs` and `rhs` reference the same memory address;
   ///   otherwise, `false`.
   @_transparent
-  public static func == (lhs: Self, rhs: Self) performs(Never) -> Bool {
+  public static func == (lhs: Self, rhs: Self) effects(Never) -> Bool {
     return Bool(Builtin.cmp_eq_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 
@@ -138,7 +138,7 @@ extension _Pointer /*: Equatable */ {
   ///            otherwise, `false`.
   @inlinable
   @_alwaysEmitIntoClient
-  public static func == <Other: _Pointer>(lhs: Self, rhs: Other) performs(Never) -> Bool {
+  public static func == <Other: _Pointer>(lhs: Self, rhs: Other) effects(Never) -> Bool {
     return Bool(Builtin.cmp_eq_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 
@@ -152,7 +152,7 @@ extension _Pointer /*: Equatable */ {
   ///            otherwise, `false`.
   @inlinable
   @_alwaysEmitIntoClient
-  public static func != <Other: _Pointer>(lhs: Self, rhs: Other) performs(Never) -> Bool {
+  public static func != <Other: _Pointer>(lhs: Self, rhs: Other) effects(Never) -> Bool {
     return Bool(Builtin.cmp_ne_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 }
@@ -169,7 +169,7 @@ extension _Pointer /*: Comparable */ {
   /// - Returns: `true` if `lhs` references a memory address earlier than
   ///   `rhs`; otherwise, `false`.
   @_transparent
-  public static func < (lhs: Self, rhs: Self) performs(Never) -> Bool {
+  public static func < (lhs: Self, rhs: Self) effects(Never) -> Bool {
     return Bool(Builtin.cmp_ult_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 
@@ -183,7 +183,7 @@ extension _Pointer /*: Comparable */ {
   ///            earlier than `rhs`; otherwise, `false`.
   @inlinable
   @_alwaysEmitIntoClient
-  public static func < <Other: _Pointer>(lhs: Self, rhs: Other) performs(Never) -> Bool {
+  public static func < <Other: _Pointer>(lhs: Self, rhs: Other) effects(Never) -> Bool {
     return Bool(Builtin.cmp_ult_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 
@@ -197,7 +197,7 @@ extension _Pointer /*: Comparable */ {
   ///            earlier than or the same as `rhs`; otherwise, `false`.
   @inlinable
   @_alwaysEmitIntoClient
-  public static func <= <Other: _Pointer>(lhs: Self, rhs: Other) performs(Never) -> Bool {
+  public static func <= <Other: _Pointer>(lhs: Self, rhs: Other) effects(Never) -> Bool {
     return Bool(Builtin.cmp_ule_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 
@@ -211,7 +211,7 @@ extension _Pointer /*: Comparable */ {
   ///            later than `rhs`; otherwise, `false`.
   @inlinable
   @_alwaysEmitIntoClient
-  public static func > <Other: _Pointer>(lhs: Self, rhs: Other) performs(Never) -> Bool {
+  public static func > <Other: _Pointer>(lhs: Self, rhs: Other) effects(Never) -> Bool {
     return Bool(Builtin.cmp_ugt_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 
@@ -225,7 +225,7 @@ extension _Pointer /*: Comparable */ {
   ///            later than or the same as `rhs`; otherwise, `false`.
   @inlinable
   @_alwaysEmitIntoClient
-  public static func >= <Other: _Pointer>(lhs: Self, rhs: Other) performs(Never) -> Bool {
+  public static func >= <Other: _Pointer>(lhs: Self, rhs: Other) effects(Never) -> Bool {
     return Bool(Builtin.cmp_uge_RawPointer(lhs._rawValue, rhs._rawValue))
   }
 }
@@ -373,37 +373,37 @@ extension UInt {
 // Pointer arithmetic operators (formerly via Strideable)
 extension Strideable where Self: _Pointer {
   @_transparent
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func + (@_nonEphemeral lhs: Self, rhs: Self.Stride) -> Self {
     return lhs.advanced(by: rhs)
   }
 
   @_transparent
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func + (lhs: Self.Stride, @_nonEphemeral rhs: Self) -> Self {
     return rhs.advanced(by: lhs)
   }
 
   @_transparent
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func - (@_nonEphemeral lhs: Self, rhs: Self.Stride) -> Self {
     return lhs.advanced(by: -rhs)
   }
 
   @_transparent
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func - (lhs: Self, rhs: Self) -> Self.Stride {
     return rhs.distance(to: lhs)
   }
 
   @_transparent
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func += (lhs: inout Self, rhs: Self.Stride) {
     lhs = lhs.advanced(by: rhs)
   }
 
   @_transparent
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func -= (lhs: inout Self, rhs: Self.Stride) {
     lhs = lhs.advanced(by: -rhs)
   }

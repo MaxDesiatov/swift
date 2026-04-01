@@ -543,8 +543,8 @@ class FunctionTypeRepr : public TypeRepr {
   SourceLoc AsyncLoc;
   SourceLoc ThrowsLoc;
   SourceLoc ArrowLoc;
-  SourceLoc PerformsLoc;
-  ArrayRef<TypeRepr *> PerformedEffectReprs;
+  SourceLoc EffectsLoc;
+  ArrayRef<TypeRepr *> DeclaredEffectReprs;
 
 public:
   FunctionTypeRepr(GenericParamList *genericParams, TupleTypeRepr *argsTy,
@@ -599,14 +599,14 @@ public:
   SourceLoc getThrowsLoc() const { return ThrowsLoc; }
   SourceLoc getArrowLoc() const { return ArrowLoc; }
 
-  bool hasPerforms() const { return PerformsLoc.isValid(); }
-  SourceLoc getPerformsLoc() const { return PerformsLoc; }
-  ArrayRef<TypeRepr *> getPerformedEffectReprs() const {
-    return PerformedEffectReprs;
+  bool hasEffects() const { return EffectsLoc.isValid(); }
+  SourceLoc getEffectsLoc() const { return EffectsLoc; }
+  ArrayRef<TypeRepr *> getDeclaredEffectReprs() const {
+    return DeclaredEffectReprs;
   }
-  void setPerforms(SourceLoc loc, ArrayRef<TypeRepr *> effects) {
-    PerformsLoc = loc;
-    PerformedEffectReprs = effects;
+  void setEffects(SourceLoc loc, ArrayRef<TypeRepr *> effects) {
+    EffectsLoc = loc;
+    DeclaredEffectReprs = effects;
   }
 
   static bool classof(const TypeRepr *T) {

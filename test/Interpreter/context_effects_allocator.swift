@@ -20,7 +20,7 @@ struct BumpAllocator: Allocation {
   let region: UnsafeMutableRawBufferPointer
   var offset: Int = 0
 
-  init(region: UnsafeMutableRawBufferPointer) performs(Never) { self.region = region }
+  init(region: UnsafeMutableRawBufferPointer) effects(Never) { self.region = region }
 
   mutating func allocate(byteCount: Int, alignment: Int) -> UnsafeMutableRawBufferPointer? {
     let aligned = (offset + alignment - 1) & ~(alignment - 1)
@@ -36,10 +36,10 @@ struct BumpAllocator: Allocation {
   }
 }
 
-// --- Helper: allocate, write, read back via performs(Allocation) ---
+// --- Helper: allocate, write, read back via effects(Allocation) ---
 
-func allocateAndWrite(_ value: UInt8, byteCount: Int) performs(Allocation) -> UnsafeMutableRawBufferPointer? {
-  let buf = perform { (a: inout some Allocation) in
+func allocateAndWrite(_ value: UInt8, byteCount: Int) effects(Allocation) -> UnsafeMutableRawBufferPointer? {
+  let buf = withEffect { (a: inout some Allocation) in
     a.allocate(byteCount: byteCount, alignment: 1)
   }
   if let buf {
@@ -48,8 +48,8 @@ func allocateAndWrite(_ value: UInt8, byteCount: Int) performs(Allocation) -> Un
   return buf
 }
 
-func deallocateBuffer(_ buf: UnsafeMutableRawBufferPointer) performs(Allocation) {
-  perform { (a: inout some Allocation) in
+func deallocateBuffer(_ buf: UnsafeMutableRawBufferPointer) effects(Allocation) {
+  withEffect { (a: inout some Allocation) in
     a.deallocate(buffer: buf)
   }
 }
@@ -93,11 +93,11 @@ testBumpAllocator()
 
 // === Test 3: Inout mutation — multiple allocations see sequential offsets ===
 
-func allocateTwo() performs(Allocation) -> (UnsafeMutableRawBufferPointer?, UnsafeMutableRawBufferPointer?) {
-  let first = perform { (a: inout some Allocation) in
+func allocateTwo() effects(Allocation) -> (UnsafeMutableRawBufferPointer?, UnsafeMutableRawBufferPointer?) {
+  let first = withEffect { (a: inout some Allocation) in
     a.allocate(byteCount: 64, alignment: 8)
   }
-  let second = perform { (a: inout some Allocation) in
+  let second = withEffect { (a: inout some Allocation) in
     a.allocate(byteCount: 128, alignment: 8)
   }
   return (first, second)
@@ -162,8 +162,8 @@ testNestedHandlers()
 
 // === Test 5: Existential path (no 'some') ===
 
-func allocateExistential(byteCount: Int) performs(Allocation) -> UnsafeMutableRawBufferPointer? {
-  perform { (a: inout Allocation) in
+func allocateExistential(byteCount: Int) effects(Allocation) -> UnsafeMutableRawBufferPointer? {
+  withEffect { (a: inout Allocation) in
     a.allocate(byteCount: byteCount, alignment: 1)
   }
 }
@@ -197,17 +197,17 @@ func testBumpOOM() {
   var third: UnsafeMutableRawBufferPointer?
   do {
     // First allocation: 64 bytes — fits in 128-byte arena.
-    first = perform { (a: inout some Allocation) in
+    first = withEffect { (a: inout some Allocation) in
       a.allocate(byteCount: 64, alignment: 8)
     }
 
     // Second allocation: 100 bytes — doesn't fit (64 + 100 > 128).
-    second = perform { (a: inout some Allocation) in
+    second = withEffect { (a: inout some Allocation) in
       a.allocate(byteCount: 100, alignment: 8)
     }
 
     // Third allocation: 60 bytes — fits in remaining space (128 - 64 = 64 >= 60).
-    third = perform { (a: inout some Allocation) in
+    third = withEffect { (a: inout some Allocation) in
       a.allocate(byteCount: 60, alignment: 8)
     }
   } handle BumpAllocator(region: arena) as Allocation

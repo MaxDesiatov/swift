@@ -263,8 +263,8 @@ extension ASTGenVisitor {
   }
 
   func generate(functionType node: FunctionTypeSyntax) -> BridgedFunctionTypeRepr {
-    let performsClause = node.effectSpecifiers?.performsClause
-    let performsTypes = performsClause?.types.lazy.map {
+    let effectsClause = node.effectSpecifiers?.effectsClause
+    let effectsTypes = effectsClause?.types.lazy.map {
       self.generate(type: $0.type)
     }
 
@@ -282,8 +282,8 @@ extension ASTGenVisitor {
       thrownType: self.generate(type: node.effectSpecifiers?.thrownError),
       arrowLoc: self.generateSourceLoc(node.returnClause.arrow),
       resultType: generate(type: node.returnClause.type),
-      performsLoc: self.generateSourceLoc(performsClause?.performsSpecifier),
-      performsTypes: performsTypes.bridgedArray(in: self)
+      effectsLoc: self.generateSourceLoc(effectsClause?.effectsSpecifier),
+      effectsTypes: effectsTypes.bridgedArray(in: self)
     )
   }
 

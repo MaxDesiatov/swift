@@ -445,7 +445,7 @@ protected:
     HasThrownError : 1,
     HasLifetimeDependencies : 1,
     HasSendableDependence : 1,
-    HasPerformedEffects : 1
+    HasDeclaredEffects : 1
   );
 
   SWIFT_INLINE_BITFIELD_FULL(ArchetypeType, TypeBase, 1+1+16,
@@ -3716,8 +3716,8 @@ protected:
           !Info.value().getLifetimeDependencies().empty();
       Bits.AnyFunctionType.HasSendableDependence =
           !Info->getSendableDependentType().isNull();
-      Bits.AnyFunctionType.HasPerformedEffects =
-          !Info->getPerformedEffects().isNull();
+      Bits.AnyFunctionType.HasDeclaredEffects =
+          !Info->getDeclaredEffects().isNull();
       // The use of both assert() and static_assert() is intentional.
       assert(Bits.AnyFunctionType.ExtInfoBits == Info.value().getBits() &&
              "Bits were dropped!");
@@ -3731,7 +3731,7 @@ protected:
       Bits.AnyFunctionType.HasThrownError = false;
       Bits.AnyFunctionType.HasLifetimeDependencies = false;
       Bits.AnyFunctionType.HasSendableDependence = false;
-      Bits.AnyFunctionType.HasPerformedEffects = false;
+      Bits.AnyFunctionType.HasDeclaredEffects = false;
     }
     this->NumParams = NumParams;
     assert(this->NumParams == NumParams && "Params dropped!");
@@ -3792,8 +3792,8 @@ public:
     return Bits.AnyFunctionType.HasSendableDependence;
   }
 
-  bool hasPerformedEffects() const {
-    return Bits.AnyFunctionType.HasPerformedEffects;
+  bool hasDeclaredEffects() const {
+    return Bits.AnyFunctionType.HasDeclaredEffects;
   }
 
   bool hasLifetimeDependencies() const {
@@ -3809,7 +3809,7 @@ public:
 
   Type getGlobalActor() const;
   Type getThrownError() const;
-  Type getPerformedEffects() const;
+  Type getDeclaredEffects() const;
 
   /// A dependent type that determines whether the function is @Sendable. This
   /// is only used within the constraint system, and will contain type
@@ -3867,7 +3867,7 @@ public:
   ExtInfo getExtInfo() const {
     assert(hasExtInfo());
     return ExtInfo(Bits.AnyFunctionType.ExtInfoBits, getClangTypeInfo(),
-                   getGlobalActor(), getThrownError(), getPerformedEffects(),
+                   getGlobalActor(), getThrownError(), getDeclaredEffects(),
                    getSendableDependentType(), getLifetimeDependencies());
   }
 
@@ -4118,7 +4118,7 @@ class FunctionType final
 
   size_t numTrailingObjects(OverloadToken<Type>) const {
     return hasGlobalActor() + hasThrownError() + hasSendableDependentType() +
-           hasPerformedEffects();
+           hasDeclaredEffects();
   }
 
   size_t numTrailingObjects(OverloadToken<size_t>) const {
@@ -4169,8 +4169,8 @@ public:
     return getTrailingObjects<Type>()[hasGlobalActor() + hasThrownError()];
   }
 
-  Type getPerformedEffects() const {
-    if (!hasPerformedEffects())
+  Type getDeclaredEffects() const {
+    if (!hasDeclaredEffects())
       return Type();
     return getTrailingObjects<Type>()[hasGlobalActor() + hasThrownError() +
                                       hasSendableDependentType()];
@@ -4311,7 +4311,7 @@ class GenericFunctionType final
   }
                                     
   size_t numTrailingObjects(OverloadToken<Type>) const {
-    return hasGlobalActor() + hasThrownError() + hasPerformedEffects();
+    return hasGlobalActor() + hasThrownError() + hasDeclaredEffects();
   }
 
   size_t numTrailingObjects(OverloadToken<size_t>) const {
@@ -4350,8 +4350,8 @@ public:
     return getTrailingObjects<Type>()[hasGlobalActor()];
   }
 
-  Type getPerformedEffects() const {
-    if (!hasPerformedEffects())
+  Type getDeclaredEffects() const {
+    if (!hasDeclaredEffects())
       return Type();
     return getTrailingObjects<Type>()[hasGlobalActor() + hasThrownError()];
   }

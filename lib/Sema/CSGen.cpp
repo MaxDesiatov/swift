@@ -1468,7 +1468,7 @@ namespace {
       return CS.getType(expr->getSubExpr());
     }
 
-    Type visitPerformExpr(PerformExpr *expr) {
+    Type visitWithEffectExpr(WithEffectExpr *expr) {
       // The perform expression calls its closure sub-expression.
       // The result type of the perform expression is the return type of
       // the closure. Create a type variable for the result and constrain
@@ -2097,9 +2097,9 @@ namespace {
       if (auto contextualType =
               CS.getContextualType(closure, /*forConstraint=*/false)) {
         if (auto fnType = contextualType->getAs<AnyFunctionType>()) {
-          if (fnType->hasPerformedEffects()) {
+          if (fnType->hasDeclaredEffects()) {
             extInfo =
-                extInfo.withPerformedEffects(fnType->getPerformedEffects());
+                extInfo.withDeclaredEffects(fnType->getDeclaredEffects());
           }
         }
       }

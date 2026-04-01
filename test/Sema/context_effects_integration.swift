@@ -8,17 +8,17 @@ protocol Network: Effect {
   mutating func fetch(url: String) -> String
 }
 struct MockFS: FileSystem {
-  init() performs(Never) {}
+  init() effects(Never) {}
   mutating func readFile(at path: String) -> String { "mock: \(path)" }
 }
 struct MockNet: Network {
-  init() performs(Never) {}
+  init() effects(Never) {}
   mutating func fetch(url: String) -> String { "net: \(url)" }
 }
 
-// Full pipeline: perform inside performs function
-func readFile(at path: String) performs(FileSystem) -> String { // expected-note {{declared here}}
-  perform { (fs: inout FileSystem) in
+// Full pipeline: withEffect inside effects function
+func readFile(at path: String) effects(FileSystem) -> String { // expected-note {{declared here}}
+  withEffect { (fs: inout FileSystem) in
     fs.readFile(at: path)
   }
 }
@@ -31,12 +31,12 @@ func testCallWithHandler() {
   } handle MockFS() as FileSystem
 }
 
-// Nested effects — two performs, two handles with sequencing
-func fetchAndSave(url: String, to path: String) performs(FileSystem & Network) -> (String, String) {
-  let data = perform { (net: inout Network) in
+// Nested effects — two effects, two handles with sequencing
+func fetchAndSave(url: String, to path: String) effects(FileSystem & Network) -> (String, String) {
+  let data = withEffect { (net: inout Network) in
     net.fetch(url: url)
   }
-  let existing = perform { (fs: inout FileSystem) in
+  let existing = withEffect { (fs: inout FileSystem) in
     fs.readFile(at: path)
   }
   return (data, existing)
@@ -61,19 +61,19 @@ func testMultiHandlerClause() {
 }
 
 // Error: perform for unhandled effect
-func testUnhandledPerform() performs(FileSystem) {
-  perform { (net: inout Network) in // expected-error {{effect 'Network' is not available}}
+func testUnhandledPerform() effects(FileSystem) {
+  withEffect { (net: inout Network) in // expected-error {{effect 'Network' is not available}}
     print(net.fetch(url: "http://example.com"))
   }
 }
 
-// Error: calling performs function without handler in performs(Never)
-func testMissingHandler() performs(Never) {
-  _ = readFile(at: "test.txt") // expected-error {{performs effects}}
+// Error: calling effects function without handler in effects(Never)
+func testMissingHandler() effects(Never) {
+  _ = readFile(at: "test.txt") // expected-error {{has effects}}
 }
 
-// OK: handle provides the effect for performs(Never)
-func testHandleProvides() performs(Never) {
+// OK: handle provides the effect for effects(Never)
+func testHandleProvides() effects(Never) {
   do {
     let content = readFile(at: "test.txt")
     _ = content
@@ -81,9 +81,9 @@ func testHandleProvides() performs(Never) {
 }
 
 // Sequencing across multiple perform blocks in same function
-func processFiles(paths: [String]) performs(FileSystem) {
+func processFiles(paths: [String]) effects(FileSystem) {
   for path in paths {
-    let content = perform { (fs: inout FileSystem) in
+    let content = withEffect { (fs: inout FileSystem) in
       fs.readFile(at: path)
     }
     _ = (path, content)

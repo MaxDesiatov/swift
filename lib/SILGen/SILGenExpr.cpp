@@ -450,8 +450,8 @@ namespace {
       return visit(E, SGFContext());
     }
 
-    RValue visitPerformExpr(PerformExpr *E, SGFContext C) {
-      // The perform expression applies its closure sub-expression to the
+    RValue visitWithEffectExpr(WithEffectExpr *E, SGFContext C) {
+      // The withEffect expression applies its closure sub-expression to the
       // current effect handler. Two paths:
       //   Path A (some): Direct witness method dispatch on handler archetype.
       //   Path B (no some): Existential bridge via alloc_stack + copy.
@@ -469,7 +469,7 @@ namespace {
       if (auto *pt = constraintType->getAs<ProtocolType>())
         proto = pt->getDecl();
 
-      assert(proto && "perform closure param should be a protocol type");
+      assert(proto && "withEffect closure param should be a protocol type");
 
       // 2. Look up the handler address.
       SILValue handlerAddr = SGF.EffectHandlers.lookup(proto);

@@ -3345,8 +3345,8 @@ NOTE(protocol_witness_rethrows_by_conformance_conflict,none,
      "but the protocol requirement is not from a '@rethrows' protocol", ())
 NOTE(protocol_witness_throws_conflict,none,
      "candidate throws, but protocol does not allow it", ())
-NOTE(protocol_witness_performs_conflict,none,
-     "candidate does not satisfy performs(%0) effect restriction "
+NOTE(protocol_witness_effects_conflict,none,
+     "candidate does not satisfy effects(%0) effect restriction "
      "of protocol requirement", (Type))
 NOTE(protocol_witness_not_objc,none,
      "candidate is explicitly '@nonobjc'", ())
@@ -5711,23 +5711,23 @@ ERROR(typed_throw_in_objc_forbidden,none,
 // MARK: Context Effects
 //------------------------------------------------------------------------------
 ERROR(context_effect_not_allowed,none,
-      "call to function that performs %0 is not allowed; "
-      "enclosing function only performs %1", (StringRef, StringRef))
+      "call to function that effects %0 is not allowed; "
+      "enclosing function only effects %1", (StringRef, StringRef))
 
-ERROR(context_effect_in_performs_never,none,
-      "call to function that performs effects is not allowed in a "
-      "'performs(Never)' context", ())
+ERROR(context_effect_in_effects_never,none,
+      "call to function that has effects is not allowed in a "
+      "'effects(Never)' context", ())
 
 ERROR(context_effect_type_not_effect_protocol,none,
-      "type %0 in 'performs' clause does not conform to 'Effect'", (Type))
+      "type %0 in 'effects' clause does not conform to 'Effect'", (Type))
 
 ERROR(context_effect_missing_effect_protocol,none,
-      "'performs' clause requires the 'Effect' protocol from the standard library", ())
+      "'effects' clause requires the 'Effect' protocol from the standard library", ())
 
 ERROR(context_effect_never_with_other_types,none,
-      "'Never' cannot be combined with other types in a 'performs' clause", ())
+      "'Never' cannot be combined with other types in a 'effects' clause", ())
 
-NOTE(callee_declared_performs_here,none,
+NOTE(callee_declared_effects_here,none,
       "%0 declared here", (DeclName))
 
 ERROR(context_effect_handle_type_not_effect,none,
@@ -5736,36 +5736,36 @@ ERROR(context_effect_handle_type_not_effect,none,
 ERROR(context_effect_handler_does_not_conform,none,
       "handler of type %0 does not conform to %1", (Type, Identifier))
 
-ERROR(context_effect_perform_not_available,none,
+ERROR(context_effect_witheffect_not_available,none,
       "effect %0 is not available; "
-      "add it to the enclosing function's 'performs' clause or "
+      "add it to the enclosing function's 'effects' clause or "
       "provide a handler with 'do...handle'", (Identifier))
 
-ERROR(context_effect_do_performs_unhandled,none,
-      "effect %0 declared in 'performs' clause has no handler", (Identifier))
+ERROR(context_effect_do_effects_unhandled,none,
+      "effect %0 declared in 'effects' clause has no handler", (Identifier))
 
 ERROR(context_effect_escaping_closure_allocates,none,
       "escaping closure requires allocation, which is not available in the "
       "current effect context", ())
 
 ERROR(context_effect_call_unrestricted_fn_type,none,
-      "call to function without 'performs' clause is not allowed in a "
-      "restricted effect context; add 'performs(...)' to the function type", ())
+      "call to function without 'effects' clause is not allowed in a "
+      "restricted effect context; add 'effects(...)' to the function type", ())
 
-ERROR(context_effect_some_not_in_perform,none,
-      "'some' in closure parameters is only allowed in 'perform' expressions", ())
+ERROR(context_effect_some_not_in_witheffect,none,
+      "'some' in closure parameters is only allowed in 'withEffect' expressions", ())
 
-ERROR(context_effect_async_performs_never,none,
-      "'async' cannot be combined with 'performs(Never)' because "
+ERROR(context_effect_async_effects_never,none,
+      "'async' cannot be combined with 'effects(Never)' because "
       "async execution requires allocation", ())
 
-ERROR(context_effect_untyped_throws_performs_never,none,
+ERROR(context_effect_untyped_throws_effects_never,none,
       "'throws' without a concrete error type cannot be combined with "
-      "'performs(Never)'; use typed 'throws(ConcreteError)' instead", ())
+      "'effects(Never)'; use typed 'throws(ConcreteError)' instead", ())
 
 ERROR(context_effect_call_unannotated_fn,none,
       "call to %0 is not allowed in a restricted effect context "
-      "because it has no 'performs' clause", (DeclName))
+      "because it has no 'effects' clause", (DeclName))
 
 //------------------------------------------------------------------------------
 // MARK: Concurrency

@@ -9,8 +9,8 @@ struct MockFS: FileSystem {
 }
 
 // 'some' path: should produce witness_method on τ_0_0, no init_existential_addr
-func readFileSome(at path: String) performs(FileSystem) -> String {
-  perform { (fs: inout some FileSystem) in fs.readFile(at: path) }
+func readFileSome(at path: String) effects(FileSystem) -> String {
+  withEffect { (fs: inout some FileSystem) in fs.readFile(at: path) }
 }
 
 // CHECK-LABEL: sil hidden [ossa] @$s27context_effects_silgen_some12readFileSome2atS2S_tF
@@ -20,8 +20,8 @@ func readFileSome(at path: String) performs(FileSystem) -> String {
 // CHECK: } // end sil function
 
 // non-'some' path: should produce init_existential_addr (existential bridge)
-func readFileExistential(at path: String) performs(FileSystem) -> String {
-  perform { (fs: inout FileSystem) in fs.readFile(at: path) }
+func readFileExistential(at path: String) effects(FileSystem) -> String {
+  withEffect { (fs: inout FileSystem) in fs.readFile(at: path) }
 }
 
 // CHECK-LABEL: sil hidden [ossa] @$s27context_effects_silgen_some19readFileExistential2atS2S_tF
@@ -29,8 +29,8 @@ func readFileExistential(at path: String) performs(FileSystem) -> String {
 // CHECK: } // end sil function
 
 // Multi-statement 'some' closure: should fall back to Path B (init_existential_addr)
-func readFileMultiStatement(at path: String) performs(FileSystem) -> String {
-  perform { (fs: inout some FileSystem) in
+func readFileMultiStatement(at path: String) effects(FileSystem) -> String {
+  withEffect { (fs: inout some FileSystem) in
     let _ = fs.readFile(at: "setup.txt")
     return fs.readFile(at: path)
   }

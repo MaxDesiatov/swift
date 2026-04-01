@@ -13,15 +13,15 @@ struct MockFS: FileSystem {
 }
 
 // CHECK: func_decl{{.*}}"readFile(at:)"
-func readFile(at path: String) performs(FileSystem) -> String {
-    // CHECK: perform_expr
-    perform { (fs: inout FileSystem) in
+func readFile(at path: String) effects(FileSystem) -> String {
+    // CHECK: with_effect_expr
+    withEffect { (fs: inout FileSystem) in
         fs.readFile(at: path)
     }
 }
 
 // CHECK: func_decl{{.*}}"pureAdd
-func pureAdd(_ a: Int, _ b: Int) performs(Never) -> Int { a + b }
+func pureAdd(_ a: Int, _ b: Int) effects(Never) -> Int { a + b }
 
 // CHECK: do_handle_stmt
 // CHECK: handle_clause
@@ -31,9 +31,9 @@ do {
 
 // Function type with performs clause
 // CHECK: type_function
-let _: () performs(FileSystem) -> Void
+let _: () effects(FileSystem) -> Void
 
 // Function taking a performs-annotated function type parameter
 // CHECK: func_decl{{.*}}"takesPerformsFS
-func takesPerformsFS(_ f: () performs(FileSystem) -> Void) {}
+func takesPerformsFS(_ f: () effects(FileSystem) -> Void) {}
 

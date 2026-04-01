@@ -4755,14 +4755,14 @@ NeverNullType TypeResolver::resolveASTFunctionType(
       isa_and_nonnull<SendingTypeRepr>(repr->getResultTypeRepr());
 
   // Resolve performed effects.
-  Type performedEffects;
-  if (repr->hasPerforms()) {
+  Type declaredEffects;
+  if (repr->hasEffects()) {
     SmallVector<Type, 2> effectTypes;
     bool sawNever = false;
 
     auto *effectProto = ctx.getProtocol(KnownProtocolKind::Effect);
 
-    for (auto *effectRepr : repr->getPerformedEffectReprs()) {
+    for (auto *effectRepr : repr->getDeclaredEffectReprs()) {
       auto effectOptions = options.withoutContext();
       auto ty = resolveType(effectRepr, effectOptions);
       if (ty->hasError()) continue;
@@ -4809,19 +4809,19 @@ NeverNullType TypeResolver::resolveASTFunctionType(
     }
 
     if (sawNever && !effectTypes.empty()) {
-      diagnose(repr->getPerformsLoc(),
+      diagnose(repr->getEffectsLoc(),
                diag::context_effect_never_with_other_types);
       effectTypes.clear();
     }
 
     if (effectTypes.size() == 1) {
-      performedEffects = effectTypes[0];
+      declaredEffects = effectTypes[0];
     } else if (effectTypes.size() > 1) {
-      performedEffects = ProtocolCompositionType::get(
+      declaredEffects = ProtocolCompositionType::get(
           ctx, effectTypes, /*Inverses=*/{},
           /*HasExplicitAnyObject=*/false);
     } else if (sawNever) {
-      performedEffects = ctx.getNeverType();
+      declaredEffects = ctx.getNeverType();
     }
   }
 
@@ -4842,7 +4842,7 @@ NeverNullType TypeResolver::resolveASTFunctionType(
                      .withSendable(sendable)
                      .withAsync(repr->isAsync())
                      .withClangFunctionType(clangFnType)
-                     .withPerformedEffects(performedEffects)
+                     .withDeclaredEffects(declaredEffects)
                      .build();
 
   // SIL uses polymorphic function types to resolve overloaded member functions.

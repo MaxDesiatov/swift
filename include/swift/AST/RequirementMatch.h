@@ -65,9 +65,9 @@ enum class MatchKind : uint8_t {
   /// The witness throws, but the requirement does not.
   ThrowsConflict,
 
-  /// The witness does not satisfy the 'performs' restriction of the
+  /// The witness does not satisfy the 'effects' restriction of the
   /// requirement.
-  PerformsConflict,
+  EffectsConflict,
 
   /// The witness did not match due to static/non-static differences.
   StaticNonStaticConflict,
@@ -419,7 +419,7 @@ struct RequirementMatch {
     case MatchKind::RethrowsByConformanceConflict:
     case MatchKind::AsyncConflict:
     case MatchKind::ThrowsConflict:
-    case MatchKind::PerformsConflict:
+    case MatchKind::EffectsConflict:
     case MatchKind::NonObjC:
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:
@@ -459,7 +459,7 @@ struct RequirementMatch {
     case MatchKind::RethrowsByConformanceConflict:
     case MatchKind::AsyncConflict:
     case MatchKind::ThrowsConflict:
-    case MatchKind::PerformsConflict:
+    case MatchKind::EffectsConflict:
     case MatchKind::NonObjC:
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:
@@ -498,7 +498,7 @@ struct RequirementMatch {
     case MatchKind::RethrowsByConformanceConflict:
     case MatchKind::AsyncConflict:
     case MatchKind::ThrowsConflict:
-    case MatchKind::PerformsConflict:
+    case MatchKind::EffectsConflict:
     case MatchKind::NonObjC:
     case MatchKind::MissingDifferentiableAttr:
     case MatchKind::EnumCaseWithAssociatedValues:

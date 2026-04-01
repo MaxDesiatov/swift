@@ -2068,34 +2068,34 @@ public:
   }
 };
 
-/// PerformExpr - A 'perform' keyword expression for context effects.
+/// WithEffectExpr - A 'with_effect' keyword expression for context effects.
 ///
 /// \code
-///   perform { (handler: inout FileSystem) in handler.readFile(at: path) }
+///   with_effect { (handler: inout FileSystem) in handler.readFile(at: path) }
 /// \endcode
 ///
 /// The sub-expression is a closure whose parameter type names the effect
 /// being performed.
-class PerformExpr : public Expr {
-  SourceLoc PerformLoc;
+class WithEffectExpr : public Expr {
+  SourceLoc WithEffectLoc;
   Expr *SubExpr;
 
 public:
-  PerformExpr(SourceLoc performLoc, Expr *sub, Type type = Type(),
+  WithEffectExpr(SourceLoc withEffectLoc, Expr *sub, Type type = Type(),
               bool implicit = false)
-      : Expr(ExprKind::Perform, implicit, type), PerformLoc(performLoc),
+      : Expr(ExprKind::WithEffect, implicit, type), WithEffectLoc(withEffectLoc),
         SubExpr(sub) {}
 
-  SourceLoc getPerformLoc() const { return PerformLoc; }
+  SourceLoc getWithEffectLoc() const { return WithEffectLoc; }
 
   Expr *getSubExpr() const { return SubExpr; }
   void setSubExpr(Expr *E) { SubExpr = E; }
 
-  SourceLoc getStartLoc() const { return PerformLoc; }
+  SourceLoc getStartLoc() const { return WithEffectLoc; }
   SourceLoc getEndLoc() const { return SubExpr->getEndLoc(); }
 
   static bool classof(const Expr *e) {
-    return e->getKind() == ExprKind::Perform;
+    return e->getKind() == ExprKind::WithEffect;
   }
 };
 

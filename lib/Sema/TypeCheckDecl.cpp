@@ -2579,11 +2579,11 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
       }
 
       // Resolve performed effects and add to ExtInfo.
-      if (AFD->hasPerforms()) {
+      if (AFD->hasEffects()) {
         SmallVector<Type, 2> effectTypes;
         bool sawNever = false;
         auto options = TypeResolutionOptions(TypeResolverContext::None);
-        for (auto &typeLoc : AFD->getPerformedEffects()) {
+        for (auto &typeLoc : AFD->getDeclaredEffects()) {
           auto *typeRepr = typeLoc.getTypeRepr();
           if (!typeRepr) continue;
           auto resolvedType =
@@ -2598,7 +2598,7 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
             continue;
           }
           // Only include protocol types — non-protocol types will be
-          // diagnosed later by resolvePerformedEffects in TypeCheckEffects.
+          // diagnosed later by resolveDeclaredEffects in TypeCheckEffects.
           Type constraintType = resolvedType;
           if (auto *et = constraintType->getAs<ExistentialType>())
             constraintType = et->getConstraintType();
@@ -2609,18 +2609,18 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
           effectTypes.push_back(constraintType);
         }
 
-        Type performedEffects;
+        Type declaredEffects;
         if (effectTypes.size() == 1) {
-          performedEffects = effectTypes[0];
+          declaredEffects = effectTypes[0];
         } else if (effectTypes.size() > 1) {
-          performedEffects = ProtocolCompositionType::get(
+          declaredEffects = ProtocolCompositionType::get(
               Context, effectTypes, /*Inverses=*/{},
               /*HasExplicitAnyObject=*/false);
         } else if (sawNever) {
-          performedEffects = Context.getNeverType();
+          declaredEffects = Context.getNeverType();
         }
-        if (performedEffects)
-          infoBuilder = infoBuilder.withPerformedEffects(performedEffects);
+        if (declaredEffects)
+          infoBuilder = infoBuilder.withDeclaredEffects(declaredEffects);
       }
 
       auto info = infoBuilder.build();

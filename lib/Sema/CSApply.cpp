@@ -3757,8 +3757,8 @@ namespace {
       return transformExprWithSubExpr(expr);
     }
 
-    Expr *visitPerformExpr(PerformExpr *expr) {
-      // The PerformExpr's type is the closure's return type (not the closure
+    Expr *visitWithEffectExpr(WithEffectExpr *expr) {
+      // The WithEffectExpr's type is the closure's return type (not the closure
       // type itself), so we just simplify the type and leave the sub-expression
       // as-is — don't try to coerce the closure to the result type.
       simplifyExprType(expr);
@@ -7758,9 +7758,9 @@ Expr *ExprRewriter::coerceToType(Expr *expr, Type toType,
     // If we have a ClosureExpr, then we can safely propagate performed effects
     // to the closure without invalidating prior analysis.
     fromEI = fromFunc->getExtInfo();
-    if (toFunc->hasPerformedEffects() && !fromFunc->hasPerformedEffects()) {
+    if (toFunc->hasDeclaredEffects() && !fromFunc->hasDeclaredEffects()) {
       auto newFromFuncType = fromFunc->withExtInfo(
-          fromEI.withPerformedEffects(toFunc->getPerformedEffects()));
+          fromEI.withDeclaredEffects(toFunc->getDeclaredEffects()));
       if (applyTypeToClosureExpr(cs, expr, newFromFuncType)) {
         fromFunc = newFromFuncType->castTo<FunctionType>();
 

@@ -5305,8 +5305,8 @@ void PrintAST::visitTryExpr(TryExpr *expr) {
   visit(expr->getSubExpr());
 }
 
-void PrintAST::visitPerformExpr(PerformExpr *expr) {
-  Printer << "perform ";
+void PrintAST::visitWithEffectExpr(WithEffectExpr *expr) {
+  Printer << "withEffect ";
   visit(expr->getSubExpr());
 }
 
@@ -7431,11 +7431,11 @@ public:
         }
       }
 
-      if (T->hasPerformedEffects()) {
+      if (T->hasDeclaredEffects()) {
         Printer << " ";
-        Printer.printKeyword("performs", Options);
+        Printer.printKeyword("effects", Options);
         Printer << "(";
-        T->getPerformedEffects().print(Printer, Options);
+        T->getDeclaredEffects().print(Printer, Options);
         Printer << ")";
       }
     }
@@ -7505,11 +7505,11 @@ public:
         }
       }
 
-      if (T->hasPerformedEffects()) {
+      if (T->hasDeclaredEffects()) {
         Printer << " ";
-        Printer.printKeyword("performs", Options);
+        Printer.printKeyword("effects", Options);
         Printer << "(";
-        T->getPerformedEffects().print(Printer, Options);
+        T->getDeclaredEffects().print(Printer, Options);
         Printer << ")";
       }
    }

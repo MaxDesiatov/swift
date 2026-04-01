@@ -4310,12 +4310,12 @@ Type AnyFunctionType::getSendableDependentType() const {
   }
 }
 
-Type AnyFunctionType::getPerformedEffects() const {
+Type AnyFunctionType::getDeclaredEffects() const {
   switch (getKind()) {
   case TypeKind::Function:
-    return cast<FunctionType>(this)->getPerformedEffects();
+    return cast<FunctionType>(this)->getDeclaredEffects();
   case TypeKind::GenericFunction:
-    return cast<GenericFunctionType>(this)->getPerformedEffects();
+    return cast<GenericFunctionType>(this)->getDeclaredEffects();
   default:
     llvm_unreachable("Illegal type kind for AnyFunctionType.");
   }
@@ -4411,14 +4411,14 @@ AnyFunctionType::getCanonicalExtInfo(bool useClangFunctionType) const {
   if (sendableDependentType)
     sendableDependentType = sendableDependentType->getCanonicalType();
 
-  Type performedEffects = getPerformedEffects();
-  if (performedEffects)
-    performedEffects = performedEffects->getCanonicalType();
+  Type declaredEffects = getDeclaredEffects();
+  if (declaredEffects)
+    declaredEffects = declaredEffects->getCanonicalType();
 
   return ExtInfo(bits,
                  useClangFunctionType ? getCanonicalClangTypeInfo()
                                       : ClangTypeInfo(),
-                 globalActor, thrownError, performedEffects,
+                 globalActor, thrownError, declaredEffects,
                  sendableDependentType, getLifetimeDependencies());
 }
 

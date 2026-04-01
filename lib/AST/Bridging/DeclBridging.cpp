@@ -241,26 +241,26 @@ BridgedFuncDecl BridgedFuncDecl_createParsed(
   return decl;
 }
 
-void BridgedFuncDecl_setParsedPerforms(BridgedFuncDecl cDecl,
-                                       SourceLoc performsLoc,
+void BridgedFuncDecl_setParsedEffects(BridgedFuncDecl cDecl,
+                                       SourceLoc effectsLoc,
                                        BridgedArrayRef cTypes) {
   auto *decl = cDecl.unbridged();
   ASTContext &ctx = decl->getASTContext();
   auto types = ctx.AllocateTransform<TypeLoc>(
       cTypes.unbridged<BridgedTypeRepr>(),
       [](auto &e) { return TypeLoc(e.unbridged()); });
-  decl->setPerforms(performsLoc, types);
+  decl->setEffects(effectsLoc, types);
 }
 
-void BridgedAccessorDecl_setParsedPerforms(BridgedAccessorDecl cDecl,
-                                           SourceLoc performsLoc,
+void BridgedAccessorDecl_setParsedEffects(BridgedAccessorDecl cDecl,
+                                           SourceLoc effectsLoc,
                                            BridgedArrayRef cTypes) {
   auto *decl = cDecl.unbridged();
   ASTContext &ctx = decl->getASTContext();
   auto types = ctx.AllocateTransform<TypeLoc>(
       cTypes.unbridged<BridgedTypeRepr>(),
       [](auto &e) { return TypeLoc(e.unbridged()); });
-  decl->setPerforms(performsLoc, types);
+  decl->setEffects(effectsLoc, types);
 }
 
 BridgedConstructorDecl BridgedConstructorDecl_createParsed(
@@ -289,15 +289,15 @@ BridgedConstructorDecl BridgedConstructorDecl_createParsed(
   return decl;
 }
 
-void BridgedConstructorDecl_setParsedPerforms(BridgedConstructorDecl cDecl,
-                                              SourceLoc performsLoc,
+void BridgedConstructorDecl_setParsedEffects(BridgedConstructorDecl cDecl,
+                                              SourceLoc effectsLoc,
                                               BridgedArrayRef cTypes) {
   auto *decl = cDecl.unbridged();
   ASTContext &ctx = decl->getASTContext();
   auto types = ctx.AllocateTransform<TypeLoc>(
       cTypes.unbridged<BridgedTypeRepr>(),
       [](auto &e) { return TypeLoc(e.unbridged()); });
-  decl->setPerforms(performsLoc, types);
+  decl->setEffects(effectsLoc, types);
 }
 
 BridgedDestructorDecl

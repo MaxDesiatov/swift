@@ -87,8 +87,8 @@ extension ASTGenVisitor {
       return self.generate(packExpansionExpr: node).asExpr
     case .patternExpr(let node):
       return self.generate(patternExpr: node).asExpr
-    case .performExpr(let node):
-      return self.generate(performExpr: node).asExpr
+    case .withEffectExpr(let node):
+      return self.generate(withEffectExpr: node).asExpr
     case .postfixIfConfigExpr(let node):
       return self.generate(postfixIfConfigExpr: node)
     case .postfixOperatorExpr(let node):
@@ -213,10 +213,10 @@ extension ASTGenVisitor {
     )
   }
 
-  func generate(performExpr node: PerformExprSyntax) -> BridgedPerformExpr {
+  func generate(withEffectExpr node: WithEffectExprSyntax) -> BridgedWithEffectExpr {
     return .createParsed(
       self.ctx,
-      performLoc: self.generateSourceLoc(node.performKeyword),
+      withEffectLoc: self.generateSourceLoc(node.withEffectKeyword),
       subExpr: self.generate(expr: node.body)
     )
   }

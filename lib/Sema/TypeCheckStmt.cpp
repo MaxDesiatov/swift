@@ -1790,7 +1790,7 @@ public:
 
     // Resolve performs clause types if present.
     llvm::SmallPtrSet<ProtocolDecl *, 4> declaredEffects;
-    for (auto &typeLoc : S->getMutablePerformsTypes()) {
+    for (auto &typeLoc : S->getMutableEffectsTypes()) {
       auto *typeRepr = typeLoc.getTypeRepr();
       if (!typeRepr) continue;
       auto options = TypeResolutionOptions(TypeResolverContext::None);
@@ -1899,11 +1899,11 @@ public:
     }
 
     // Check that every declared performs effect has a handler.
-    if (S->hasPerformsClause()) {
+    if (S->hasEffectsClause()) {
       for (auto *declaredProto : declaredEffects) {
         if (!handledEffects.count(declaredProto)) {
-          Ctx.Diags.diagnose(S->getPerformsLoc(),
-                             diag::context_effect_do_performs_unhandled,
+          Ctx.Diags.diagnose(S->getEffectsLoc(),
+                             diag::context_effect_do_effects_unhandled,
                              declaredProto->getName());
         }
       }

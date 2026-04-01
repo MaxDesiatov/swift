@@ -460,14 +460,14 @@ extension ASTGenVisitor {
       thrownType: self.generate(type: node.effectSpecifiers?.thrownError)
     )
     accessor.asDecl.attachParsedAttrs(attrs)
-    let performsLoc = self.generateSourceLoc(node.effectSpecifiers?.performsClause?.performsSpecifier)
-    if performsLoc.isValid {
-      let performedEffectTypes = node.effectSpecifiers?.performsClause?.types.map {
+    let effectsLoc = self.generateSourceLoc(node.effectSpecifiers?.effectsClause?.effectsSpecifier)
+    if effectsLoc.isValid {
+      let effectTypes = node.effectSpecifiers?.effectsClause?.types.map {
         self.generate(type: $0.type)
       } ?? []
-      accessor.setParsedPerforms(
-        performsLoc: performsLoc,
-        types: performedEffectTypes.lazy.bridgedArray(in: self))
+      accessor.setParsedEffects(
+        effectsLoc: effectsLoc,
+        types: effectTypes.lazy.bridgedArray(in: self))
     }
     if let body = node.body {
       self.withDeclContext(accessor.asDeclContext) {
@@ -726,8 +726,8 @@ extension ASTGenVisitor {
 extension ASTGenVisitor {
   struct GeneratedFunctionSignature {
     var parameterList: BridgedParameterList
-    var performsLoc: SourceLoc
-    var performedEffectTypes: [BridgedTypeRepr]
+    var effectsLoc: SourceLoc
+    var effectTypes: [BridgedTypeRepr]
     var asyncLoc: SourceLoc
     var isReasync: Bool
     var throwsLoc: SourceLoc
@@ -741,8 +741,8 @@ extension ASTGenVisitor {
     for context: ParameterContext
   ) -> GeneratedFunctionSignature {
     let parameterList = self.generate(functionParameterClause: node.parameterClause, for: context)
-    let performsLoc = self.generateSourceLoc(node.effectSpecifiers?.performsClause?.performsSpecifier)
-    let performedEffectTypes = node.effectSpecifiers?.performsClause?.types.map {
+    let effectsLoc = self.generateSourceLoc(node.effectSpecifiers?.effectsClause?.effectsSpecifier)
+    let effectTypes = node.effectSpecifiers?.effectsClause?.types.map {
       self.generate(type: $0.type)
     } ?? []
     let asyncLoc = self.generateSourceLoc(node.effectSpecifiers?.asyncSpecifier)
@@ -753,8 +753,8 @@ extension ASTGenVisitor {
     let returnType = (node.returnClause?.type).map(self.generate(type:))
     return GeneratedFunctionSignature(
       parameterList: parameterList,
-      performsLoc: performsLoc,
-      performedEffectTypes: performedEffectTypes,
+      effectsLoc: effectsLoc,
+      effectTypes: effectTypes,
       asyncLoc: asyncLoc,
       isReasync: isReasync,
       throwsLoc: throwsLoc,
@@ -790,10 +790,10 @@ extension ASTGenVisitor {
       returnType: signature.returnType.asNullable,
       genericWhereClause: self.generate(genericWhereClause: node.genericWhereClause)
     )
-    if signature.performsLoc.isValid {
-      decl.setParsedPerforms(
-        performsLoc: signature.performsLoc,
-        types: signature.performedEffectTypes.lazy.bridgedArray(in: self))
+    if signature.effectsLoc.isValid {
+      decl.setParsedEffects(
+        effectsLoc: signature.effectsLoc,
+        types: signature.effectTypes.lazy.bridgedArray(in: self))
     }
     if signature.isReasync {
       attrs.attributes.add(BridgedDeclAttribute.createSimple(self.ctx, kind: .Reasync, atLoc: nil, nameLoc: signature.asyncLoc))
@@ -832,10 +832,10 @@ extension ASTGenVisitor {
       thrownType: signature.thrownType.asNullable,
       genericWhereClause: self.generate(genericWhereClause: node.genericWhereClause)
     )
-    if signature.performsLoc.isValid {
-      decl.setParsedPerforms(
-        performsLoc: signature.performsLoc,
-        types: signature.performedEffectTypes.lazy.bridgedArray(in: self))
+    if signature.effectsLoc.isValid {
+      decl.setParsedEffects(
+        effectsLoc: signature.effectsLoc,
+        types: signature.effectTypes.lazy.bridgedArray(in: self))
     }
     if signature.isReasync {
       attrs.attributes.add(BridgedDeclAttribute.createSimple(self.ctx, kind: .Reasync, atLoc: nil, nameLoc: signature.asyncLoc))

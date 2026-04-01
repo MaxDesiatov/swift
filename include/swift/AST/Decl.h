@@ -7916,10 +7916,10 @@ protected:
   TypeLoc ThrownType;
 
   /// Location of the 'performs' token.
-  SourceLoc PerformsLoc;
+  SourceLoc EffectsLoc;
 
-  /// The list of performed effect types.
-  ArrayRef<TypeLoc> PerformedEffects;
+  /// The list of declared effect types.
+  ArrayRef<TypeLoc> DeclaredEffects;
 
   struct {
     unsigned NeedsNewVTableEntryComputed : 1;
@@ -8064,18 +8064,18 @@ public:
   bool hasEffect(EffectKind kind) const;
 
   /// Returns true if the function has a 'performs' clause for context effects.
-  bool hasPerforms() const { return PerformsLoc.isValid(); }
+  bool hasEffects() const { return EffectsLoc.isValid(); }
 
   /// Retrieve the location of the 'performs' keyword, if present.
-  SourceLoc getPerformsLoc() const { return PerformsLoc; }
+  SourceLoc getEffectsLoc() const { return EffectsLoc; }
 
-  /// Retrieve the list of performed effect types.
-  ArrayRef<TypeLoc> getPerformedEffects() const { return PerformedEffects; }
+  /// Retrieve the list of declared effect types.
+  ArrayRef<TypeLoc> getDeclaredEffects() const { return DeclaredEffects; }
 
   /// Set the performs clause information.
-  void setPerforms(SourceLoc loc, ArrayRef<TypeLoc> effects) {
-    PerformsLoc = loc;
-    PerformedEffects = effects;
+  void setEffects(SourceLoc loc, ArrayRef<TypeLoc> effects) {
+    EffectsLoc = loc;
+    DeclaredEffects = effects;
   }
 
   /// Returns if the function is 'rethrows' or 'reasync'.
