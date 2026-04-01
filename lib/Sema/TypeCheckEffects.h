@@ -60,7 +60,7 @@ bool isRethrowLikeTypedThrows(AbstractFunctionDecl *func);
 /// For a single protocol type, returns that protocol.
 /// For a ProtocolCompositionType, returns each member protocol.
 /// For Never, returns empty.
-SmallVector<ProtocolDecl *, 4> extractEffectProtocols(Type performedEffects);
+SmallVector<ProtocolDecl *, 4> extractEffectProtocols(Type declaredEffects);
 
 }
 

@@ -1869,7 +1869,7 @@ class DestructureInputs {
   /// addressable-for-dependencies.
   bool ForeignSelfHasScopedDependency = false;
 
-  /// Handler generic param canonical types for performed effects.
+  /// Handler generic param canonical types for declared effects.
   /// Each entry corresponds to an @inout implicit handler parameter.
   ArrayRef<CanType> HandlerParamTypes;
 
@@ -1985,7 +1985,8 @@ private:
       }
     }
 
-    // If the function has performed effects, insert implicit @inout handler
+    // If the function has declared effects, insert implicit @inout handler
+
     // parameters for each effect protocol.
     for (auto handlerParamType : HandlerParamTypes) {
       addParameter(-1, handlerParamType,
@@ -2771,15 +2772,15 @@ static CanSILFunctionType getSILFunctionType(
   CanGenericSignature genericSig =
     substFnInterfaceType.getOptGenericSignature();
 
-  // Extend generic signature for performed effects handler parameters.
+  // Extend generic signature for declared effects handler parameters.
   // Each effect protocol E introduces a generic type param H: E and an
   // implicit @inout H parameter.
   SmallVector<CanType, 2> handlerParamTypes;
-  if (auto performedEffects = substFnInterfaceType->getPerformedEffects()) {
-    if (!performedEffects->isNever()) {
+  if (auto declaredEffects = substFnInterfaceType->getDeclaredEffects()) {
+    if (!declaredEffects->isNever()) {
       // Extract effect protocols.
       SmallVector<ProtocolDecl *, 4> protocols;
-      Type effectsType = performedEffects;
+      Type effectsType = declaredEffects;
       if (auto *et = effectsType->getAs<ExistentialType>())
         effectsType = et->getConstraintType();
 
@@ -2818,8 +2819,7 @@ static CanSILFunctionType getSILFunctionType(
         // Build extended generic signature.
         genericSig =
             buildGenericSignature(TC.Context, genericSig, addedParams,
-                                  addedRequirements,
-                                  /*allowInverses=*/true)
+                                  addedRequirements, ExpandDefaults)
                 .getCanonicalSignature();
 
         // Collect canonical types for the handler params.

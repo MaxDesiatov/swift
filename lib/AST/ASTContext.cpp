@@ -4900,7 +4900,7 @@ static RecursiveTypeProperties
 getFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
                                Type result, Type globalActor, Type thrownError,
                                Type sendableDependentType,
-                               Type performedEffects) {
+                               Type declaredEffects) {
   RecursiveTypeProperties properties;
   for (auto param : params)
     properties |= param.getPlainType()->getRecursiveProperties();
@@ -4909,8 +4909,8 @@ getFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
     properties |= globalActor->getRecursiveProperties();
   if (thrownError)
     properties |= thrownError->getRecursiveProperties();
-  if (performedEffects)
-    properties |= performedEffects->getRecursiveProperties();
+  if (declaredEffects)
+    properties |= declaredEffects->getRecursiveProperties();
   if (sendableDependentType) {
     ASSERT(sendableDependentType->hasTypeVariable());
     properties |= RecursiveTypeProperties::SolverAllocated;
@@ -4944,7 +4944,7 @@ static RecursiveTypeProperties
 getGenericFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
                                       Type result, Type globalActor,
                                       Type thrownError,
-                                      Type performedEffects) {
+                                      Type declaredEffects) {
   static_assert(RecursiveTypeProperties::BitWidth == 19,
                 "revisit this if you add new recursive type properties");
   RecursiveTypeProperties properties;
@@ -4968,7 +4968,7 @@ getGenericFunctionRecursiveProperties(ArrayRef<AnyFunctionType::Param> params,
   unionBits(result);
   unionBits(globalActor);
   unionBits(thrownError);
-  unionBits(performedEffects);
+  unionBits(declaredEffects);
   return properties;
 }
 
@@ -5101,17 +5101,17 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
   Type thrownError;
   Type globalActor;
   Type sendableDependentType;
-  Type performedEffects;
+  Type declaredEffects;
   if (info.has_value()) {
     thrownError = info->getThrownError();
     globalActor = info->getGlobalActor();
     sendableDependentType = info->getSendableDependentType();
-    performedEffects = info->getPerformedEffects();
+    declaredEffects = info->getDeclaredEffects();
   }
 
   auto properties = getFunctionRecursiveProperties(
       params, result, globalActor, thrownError, sendableDependentType,
-      performedEffects);
+      declaredEffects);
   auto arena = getArena(properties);
 
   if (info.has_value()) {
@@ -5145,7 +5145,7 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
 
   unsigned numTypes = (globalActor ? 1 : 0) + (thrownError ? 1 : 0) +
                       (sendableDependentType ? 1 : 0) +
-                      (performedEffects ? 1 : 0);
+                      (declaredEffects ? 1 : 0);
 
   bool hasLifetimeDependenceInfo =
       info.has_value() ? !info->getLifetimeDependencies().empty() : false;
@@ -5176,7 +5176,7 @@ FunctionType *FunctionType::get(ArrayRef<AnyFunctionType::Param> params,
   if (globalActor && !globalActor->isCanonical())
     isCanonical = false;
 
-  if (performedEffects && !performedEffects->isCanonical())
+  if (declaredEffects && !declaredEffects->isCanonical())
     isCanonical = false;
 
   auto funcTy = new (mem) FunctionType(params, result, info,
@@ -5221,8 +5221,8 @@ FunctionType::FunctionType(ArrayRef<AnyFunctionType::Param> params, Type output,
       getTrailingObjects<Type>()[typeIdx] = sendableDependentType;
       typeIdx += 1;
     }
-    if (Type performedEffects = info->getPerformedEffects()) {
-      getTrailingObjects<Type>()[typeIdx] = performedEffects;
+    if (Type declaredEffects = info->getDeclaredEffects()) {
+      getTrailingObjects<Type>()[typeIdx] = declaredEffects;
       typeIdx += 1;
     }
     auto lifetimeDependenceInfo = info->getLifetimeDependencies();
@@ -5289,11 +5289,11 @@ GenericFunctionType *GenericFunctionType::get(GenericSignature sig,
 
   Type thrownError;
   Type globalActor;
-  Type performedEffects;
+  Type declaredEffects;
   if (info.has_value()) {
     thrownError = info->getThrownError();
     globalActor = info->getGlobalActor();
-    performedEffects = info->getPerformedEffects();
+    declaredEffects = info->getDeclaredEffects();
 
     // Generic functions can't currently have Sendable dependence.
     ASSERT(!info->getSendableDependentType());
@@ -5313,11 +5313,11 @@ GenericFunctionType *GenericFunctionType::get(GenericSignature sig,
   if (globalActor && !sig->isReducedType(globalActor))
     isCanonical = false;
 
-  if (performedEffects && !performedEffects->isCanonical())
+  if (declaredEffects && !declaredEffects->isCanonical())
     isCanonical = false;
 
   unsigned numTypes = (globalActor ? 1 : 0) + (thrownError ? 1 : 0) +
-                      (performedEffects ? 1 : 0);
+                      (declaredEffects ? 1 : 0);
   bool hasLifetimeDependenceInfo =
       info.has_value() ? !info->getLifetimeDependencies().empty() : false;
   auto numLifetimeDependencies =
@@ -5330,7 +5330,7 @@ GenericFunctionType *GenericFunctionType::get(GenericSignature sig,
   void *mem = ctx.Allocate(allocSize, alignof(GenericFunctionType));
 
   auto properties = getGenericFunctionRecursiveProperties(
-      params, result, globalActor, thrownError, performedEffects);
+      params, result, globalActor, thrownError, declaredEffects);
   auto funcTy = new (mem) GenericFunctionType(sig, params, result, info,
                                               isCanonical ? &ctx : nullptr,
                                               properties);
@@ -5359,8 +5359,8 @@ GenericFunctionType::GenericFunctionType(
       getTrailingObjects<Type>()[typeIdx] = thrownError;
       ++typeIdx;
     }
-    if (Type performedEffects = info->getPerformedEffects()) {
-      getTrailingObjects<Type>()[typeIdx] = performedEffects;
+    if (Type declaredEffects = info->getDeclaredEffects()) {
+      getTrailingObjects<Type>()[typeIdx] = declaredEffects;
       ++typeIdx;
     }
 

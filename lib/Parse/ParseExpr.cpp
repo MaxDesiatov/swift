@@ -545,13 +545,13 @@ ParserResult<Expr> Parser::parseExprSequenceElement(Diag<> message,
 
   // 'perform' keyword for context effects.
   if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
-      Tok.isContextualKeyword("perform")) {
-    SourceLoc performLoc = consumeToken();
+      Tok.isContextualKeyword("withEffect")) {
+    SourceLoc withEffectLoc = consumeToken();
     ParserResult<Expr> sub = parseExprUnary(message, isExprBasic);
     if (sub.hasCodeCompletion() || sub.isNull())
       return sub;
     return makeParserResult(
-        new (Context) PerformExpr(performLoc, sub.get()));
+        new (Context) WithEffectExpr(withEffectLoc, sub.get()));
   }
 
   SourceLoc tryLoc;

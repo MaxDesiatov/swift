@@ -9,18 +9,18 @@ protocol Network: Effect {
   mutating func fetch(url: String) -> String
 }
 struct MockFS: FileSystem {
-  init() performs(Never) {}
+  init() effects(Never) {}
   mutating func readFile(at path: String) -> String { "mock: \(path)" }
 }
 struct MockNet: Network {
-  init() performs(Never) {}
+  init() effects(Never) {}
   mutating func fetch(url: String) -> String { "net: \(url)" }
 }
 
 // --- 'some' perform: zero-overhead witness dispatch ---
 
-func readFileSome(at path: String) performs(FileSystem) -> String {
-  perform { (fs: inout some FileSystem) in
+func readFileSome(at path: String) effects(FileSystem) -> String {
+  withEffect { (fs: inout some FileSystem) in
     fs.readFile(at: path)
   }
 }
@@ -39,8 +39,8 @@ testSomePerform()
 
 // --- existential perform (no 'some') ---
 
-func readFileExistential(at path: String) performs(FileSystem) -> String {
-  perform { (fs: inout FileSystem) in
+func readFileExistential(at path: String) effects(FileSystem) -> String {
+  withEffect { (fs: inout FileSystem) in
     fs.readFile(at: path)
   }
 }
@@ -59,11 +59,11 @@ testExistentialPerform()
 
 // --- nested effects with two protocols ---
 
-func fetchAndSave(url: String, to path: String) performs(FileSystem & Network) -> (String, String) {
-  let data = perform { (net: inout some Network) in
+func fetchAndSave(url: String, to path: String) effects(FileSystem & Network) -> (String, String) {
+  let data = withEffect { (net: inout some Network) in
     net.fetch(url: url)
   }
-  let existing = perform { (fs: inout some FileSystem) in
+  let existing = withEffect { (fs: inout some FileSystem) in
     fs.readFile(at: path)
   }
   return (data, existing)
@@ -98,7 +98,7 @@ func testMultiHandler() {
 }
 testMultiHandler()
 
-// --- handle provides effect for performs(Never) ---
+// --- handle provides effect for effects(Never) ---
 
 // CHECK-LABEL: testHandleProvides
 func testHandleProvides() {
@@ -114,8 +114,8 @@ testHandleProvides()
 
 // --- sequencing across multiple perform blocks ---
 
-func readFileSomeAt(_ path: String) performs(FileSystem) -> String {
-  perform { (fs: inout some FileSystem) in
+func readFileSomeAt(_ path: String) effects(FileSystem) -> String {
+  withEffect { (fs: inout some FileSystem) in
     fs.readFile(at: path)
   }
 }

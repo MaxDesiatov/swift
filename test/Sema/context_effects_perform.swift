@@ -12,23 +12,23 @@ struct MockFS: FileSystem {
 }
 
 // OK: perform with correct effect available via performs clause
-func testPerformOK() performs(FileSystem) {
-  let content = perform { (fs: inout FileSystem) in
+func testPerformOK() effects(FileSystem) {
+  let content = withEffect { (fs: inout FileSystem) in
     fs.readFile(at: "test.txt")
   }
   _ = content
 }
 
 // ERROR: perform with wrong effect
-func testPerformWrongEffect() performs(Network) {
-  perform { (fs: inout FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
+func testPerformWrongEffect() effects(Network) {
+  withEffect { (fs: inout FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
     _ = fs.readFile(at: "test.txt")
   }
 }
 
 // ERROR: perform in unannotated function (no handler, no performs clause)
 func testPerformNoClause() {
-  perform { (fs: inout FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
+  withEffect { (fs: inout FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
     _ = fs.readFile(at: "test.txt")
   }
 }
@@ -36,7 +36,7 @@ func testPerformNoClause() {
 // OK: perform inside do...handle (narrowed)
 func testPerformNarrowed() {
   do {
-    let content = perform { (fs: inout FileSystem) in
+    let content = withEffect { (fs: inout FileSystem) in
       fs.readFile(at: "test.txt")
     }
     _ = content
@@ -44,11 +44,11 @@ func testPerformNarrowed() {
 }
 
 // OK: perform return type propagation — result type is String
-func testPerformReturnType() performs(FileSystem) {
-  let first = perform { (fs: inout FileSystem) in
+func testPerformReturnType() effects(FileSystem) {
+  let first = withEffect { (fs: inout FileSystem) in
     fs.readFile(at: "a.txt")
   }
-  let second = perform { (fs: inout FileSystem) in
+  let second = withEffect { (fs: inout FileSystem) in
     fs.readFile(at: "b.txt")
   }
   // Sequencing: both reads happen, results are used
@@ -61,8 +61,8 @@ func testPerformReturnType() performs(FileSystem) {
 // is not checked, and calling a closure doesn't propagate effects.
 
 // OK: 'some' in perform closure param resolves to existential type
-func testPerformSomeOK() performs(FileSystem) -> String {
-  perform { (fs: inout some FileSystem) in
+func testPerformSomeOK() effects(FileSystem) -> String {
+  withEffect { (fs: inout some FileSystem) in
     fs.readFile(at: "test.txt")
   }
 }
@@ -70,7 +70,7 @@ func testPerformSomeOK() performs(FileSystem) -> String {
 // OK: 'some' in perform closure inside do...handle
 func testPerformSomeNarrowed() {
   do {
-    let content = perform { (fs: inout some FileSystem) in
+    let content = withEffect { (fs: inout some FileSystem) in
       fs.readFile(at: "test.txt")
     }
     _ = content
@@ -78,23 +78,23 @@ func testPerformSomeNarrowed() {
 }
 
 // ERROR: 'some' perform with wrong effect
-func testPerformSomeWrongEffect() performs(Network) {
-  perform { (fs: inout some FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
+func testPerformSomeWrongEffect() effects(Network) {
+  withEffect { (fs: inout some FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
     _ = fs.readFile(at: "test.txt")
   }
 }
 
 // ERROR: 'some' in standalone closure variable (not a perform expression)
-func testSomeStandaloneClosure() performs(FileSystem) {
-  let _ = { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'perform' expressions}}
+func testSomeStandaloneClosure() effects(FileSystem) {
+  let _ = { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'withEffect' expressions}}
     print(fs)
   }
 }
 
 // ERROR: 'some' in closure passed as argument (not perform)
-func takeClosure(_ f: (inout any FileSystem) -> Void) performs(Never) {}
-func testSomeClosureArg() performs(FileSystem) {
-  takeClosure { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'perform' expressions}}
+func takeClosure(_ f: (inout any FileSystem) -> Void) effects(Never) {}
+func testSomeClosureArg() effects(FileSystem) {
+  takeClosure { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'withEffect' expressions}}
     print(fs)
   }
 }
@@ -102,7 +102,7 @@ func testSomeClosureArg() performs(FileSystem) {
 // ERROR: 'some' in closure inside do...handle (not via perform)
 func testSomeInDoHandle() {
   do {
-    let _ = { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'perform' expressions}}
+    let _ = { (fs: inout some FileSystem) in // expected-error {{'some' in closure parameters is only allowed in 'withEffect' expressions}}
       print(fs)
     }
   } handle MockFS() as FileSystem
@@ -113,9 +113,9 @@ struct MockNetwork: Network {
 }
 
 // OK: nested perform — inner closure IS a perform closure
-func testNestedPerform() performs(FileSystem & Network) {
-  perform { (net: inout Network) in
-    let _ = perform { (fs: inout some FileSystem) in
+func testNestedPerform() effects(FileSystem & Network) {
+  withEffect { (net: inout Network) in
+    let _ = withEffect { (fs: inout some FileSystem) in
       fs.readFile(at: "test.txt")
     }
     print(net.fetch(url: "http://example.com"))
@@ -123,21 +123,21 @@ func testNestedPerform() performs(FileSystem & Network) {
 }
 
 // OK: perform with 'some' but no 'inout' specifier
-func testPerformSomeNoInout() performs(FileSystem) {
-  perform { (fs: some FileSystem) in
+func testPerformSomeNoInout() effects(FileSystem) {
+  withEffect { (fs: some FileSystem) in
     print(fs)
   }
 }
 
 // OK: perform with multiple 'some' params
-func testPerformMultipleSomeParams() performs(FileSystem & Network) {
-  perform { (fs: inout some FileSystem) in
+func testPerformMultipleSomeParams() effects(FileSystem & Network) {
+  withEffect { (fs: inout some FileSystem) in
     print(fs.readFile(at: "test.txt"))
   }
 }
 
 // ERROR: 'some' with non-protocol type
-func testSomeNonProtocol() performs(FileSystem) {
+func testSomeNonProtocol() effects(FileSystem) {
   let _ = { (x: some Int) in // expected-error {{'some' types are only permitted in properties, subscripts, and functions}}
     print(x)
   }

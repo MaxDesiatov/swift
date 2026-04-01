@@ -4298,7 +4298,7 @@ getAnyFunctionRefInterfaceType(TypeConverter &TC,
           .withIsolation(funcType->getIsolation())
           .withLifetimeDependencies(funcType->getLifetimeDependencies())
           .withSendingResult(funcType->hasSendingResult())
-          .withPerformedEffects(funcType->getPerformedEffects())
+          .withDeclaredEffects(funcType->getDeclaredEffects())
           .build();
 
   return CanAnyFunctionType::get(

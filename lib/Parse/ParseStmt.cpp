@@ -2208,18 +2208,18 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
   }
 
   // Parse optional 'performs(Type)' clause for do...handle.
-  SourceLoc performsLoc;
-  SmallVector<TypeRepr *, 2> performsTypes;
+  SourceLoc effectsLoc;
+  SmallVector<TypeRepr *, 2> effectsTypes;
   if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
-      Tok.isContextualKeyword("performs")) {
-    performsLoc = consumeToken();
+      Tok.isContextualKeyword("effects")) {
+    effectsLoc = consumeToken();
     if (Tok.is(tok::l_paren)) {
       SourceLoc lParenLoc = consumeToken();
       if (!Tok.is(tok::r_paren) && !Tok.is(tok::eof)) {
         ParserResult<TypeRepr> ty = parseType(diag::expected_type);
         status |= ty;
         if (ty.getPtrOrNull())
-          performsTypes.push_back(ty.get());
+          effectsTypes.push_back(ty.get());
       }
       SourceLoc rParenLoc;
       parseMatchingToken(tok::r_paren, rParenLoc,
@@ -2302,13 +2302,13 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
     } while (consumeIf(tok::comma));
 
     SmallVector<TypeLoc, 2> performsTypeLocs;
-    for (auto *repr : performsTypes)
+    for (auto *repr : effectsTypes)
       performsTypeLocs.push_back(TypeLoc(repr));
 
     return makeParserResult(
         status,
         DoHandleStmt::create(Context, labelInfo, doLoc, body.get(),
-                             handleClauses, performsLoc,
+                             handleClauses, effectsLoc,
                              Context.AllocateCopy(performsTypeLocs)));
   }
 

@@ -122,7 +122,7 @@ extension IndexingIterator: IteratorProtocol, Sequence {
   ///   exists; otherwise, `nil`.
   @inlinable
   @inline(__always)
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public mutating func next() -> Elements.Element? {
     if _position == _elements.endIndex { return nil }
     let element = _elements[_position]
@@ -998,7 +998,7 @@ extension Collection where Iterator == IndexingIterator<Self> {
   /// Returns an iterator over the elements of the collection.
   @inlinable // trivial-implementation
   @inline(__always)
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public __consuming func makeIterator() -> IndexingIterator<Self> {
     return IndexingIterator(_elements: self)
   }

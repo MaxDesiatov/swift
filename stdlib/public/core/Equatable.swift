@@ -192,7 +192,7 @@ extension Equatable where Self: ~Copyable & ~Escapable {
   // warnings, e.g. that an expression always evaluates to true
   @_preInverseGenerics
   @_transparent
-  @_semantics("performs_never")
+  @_semantics("effects_never")
   public static func != (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
     return !(lhs == rhs)
   }

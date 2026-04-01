@@ -269,14 +269,14 @@ BridgedFunctionTypeRepr BridgedFunctionTypeRepr_createParsed(
     BridgedASTContext cContext, BridgedTypeRepr argsTy, SourceLoc asyncLoc,
     SourceLoc throwsLoc, BridgedNullableTypeRepr thrownType, SourceLoc arrowLoc,
     BridgedTypeRepr resultType,
-    SourceLoc performsLoc, BridgedArrayRef performsTypes) {
+    SourceLoc effectsLoc, BridgedArrayRef effectsTypes) {
   ASTContext &context = cContext.unbridged();
   auto *repr = new (context) FunctionTypeRepr(
       nullptr, cast<TupleTypeRepr>(argsTy.unbridged()), asyncLoc, throwsLoc,
       thrownType.unbridged(), arrowLoc, resultType.unbridged());
-  if (performsLoc.isValid()) {
-    repr->setPerforms(performsLoc,
-                      context.AllocateCopy(performsTypes.unbridged<TypeRepr *>()));
+  if (effectsLoc.isValid()) {
+    repr->setEffects(effectsLoc,
+                      context.AllocateCopy(effectsTypes.unbridged<TypeRepr *>()));
   }
   return repr;
 }

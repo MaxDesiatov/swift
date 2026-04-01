@@ -929,7 +929,7 @@ class Traversal : public ASTVisitor<Traversal, Expr*, Stmt*,
     return nullptr;
   }
 
-  Expr *visitPerformExpr(PerformExpr *E) {
+  Expr *visitWithEffectExpr(WithEffectExpr *E) {
     if (Expr *E2 = doIt(E->getSubExpr())) {
       E->setSubExpr(E2);
       return E;

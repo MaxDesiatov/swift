@@ -101,7 +101,7 @@ protected:
   SWIFT_INLINE_BITFIELD_FULL(DoHandleStmt, LabeledStmt, 32+16,
     : NumPadBits,
     NumHandleClauses : 32,
-    NumPerformsTypes : 16
+    NumEffectsTypes : 16
   );
 
   SWIFT_INLINE_BITFIELD_FULL(SwitchStmt, LabeledStmt, 32,
@@ -1640,7 +1640,7 @@ class DoHandleStmt final
   friend TrailingObjects;
 
   SourceLoc DoLoc;
-  SourceLoc PerformsLoc;
+  SourceLoc EffectsLoc;
   Stmt *Body;
 
   size_t numTrailingObjects(OverloadToken<HandleClauseInfo>) const {
@@ -1649,17 +1649,17 @@ class DoHandleStmt final
 
   DoHandleStmt(LabeledStmtInfo labelInfo, SourceLoc doLoc, Stmt *body,
                ArrayRef<HandleClauseInfo> handleClauses,
-               SourceLoc performsLoc,
-               ArrayRef<TypeLoc> performsTypes,
+               SourceLoc effectsLoc,
+               ArrayRef<TypeLoc> effectsTypes,
                std::optional<bool> implicit)
       : LabeledStmt(StmtKind::DoHandle,
                      getDefaultImplicitFlag(implicit, doLoc), labelInfo),
-        DoLoc(doLoc), PerformsLoc(performsLoc), Body(body) {
+        DoLoc(doLoc), EffectsLoc(effectsLoc), Body(body) {
     Bits.DoHandleStmt.NumHandleClauses = handleClauses.size();
-    Bits.DoHandleStmt.NumPerformsTypes = performsTypes.size();
+    Bits.DoHandleStmt.NumEffectsTypes = effectsTypes.size();
     std::uninitialized_copy(handleClauses.begin(), handleClauses.end(),
                             getTrailingObjects<HandleClauseInfo>());
-    std::uninitialized_copy(performsTypes.begin(), performsTypes.end(),
+    std::uninitialized_copy(effectsTypes.begin(), effectsTypes.end(),
                             getTrailingObjects<TypeLoc>());
   }
 
@@ -1667,8 +1667,8 @@ public:
   static DoHandleStmt *create(ASTContext &ctx, LabeledStmtInfo labelInfo,
                                SourceLoc doLoc, Stmt *body,
                                ArrayRef<HandleClauseInfo> handleClauses,
-                               SourceLoc performsLoc = SourceLoc(),
-                               ArrayRef<TypeLoc> performsTypes = {},
+                               SourceLoc effectsLoc = SourceLoc(),
+                               ArrayRef<TypeLoc> effectsTypes = {},
                                std::optional<bool> implicit = std::nullopt);
 
   SourceLoc getDoLoc() const { return DoLoc; }
@@ -1679,16 +1679,16 @@ public:
   Stmt *getBody() const { return Body; }
   void setBody(Stmt *s) { Body = s; }
 
-  bool hasPerformsClause() const { return PerformsLoc.isValid(); }
-  SourceLoc getPerformsLoc() const { return PerformsLoc; }
+  bool hasEffectsClause() const { return EffectsLoc.isValid(); }
+  SourceLoc getEffectsLoc() const { return EffectsLoc; }
 
-  ArrayRef<TypeLoc> getPerformsTypes() const {
-    auto numTypes = static_cast<size_t>(Bits.DoHandleStmt.NumPerformsTypes);
+  ArrayRef<TypeLoc> getEffectsTypes() const {
+    auto numTypes = static_cast<size_t>(Bits.DoHandleStmt.NumEffectsTypes);
     return {getTrailingObjects<TypeLoc>(), numTypes};
   }
 
-  MutableArrayRef<TypeLoc> getMutablePerformsTypes() {
-    auto numTypes = static_cast<size_t>(Bits.DoHandleStmt.NumPerformsTypes);
+  MutableArrayRef<TypeLoc> getMutableEffectsTypes() {
+    auto numTypes = static_cast<size_t>(Bits.DoHandleStmt.NumEffectsTypes);
     return {getTrailingObjects<TypeLoc>(), numTypes};
   }
 

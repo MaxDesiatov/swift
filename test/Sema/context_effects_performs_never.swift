@@ -5,60 +5,60 @@ protocol FileSystem: Effect {
   mutating func readFile(at: String) -> String
 }
 
-// --- async/throws + performs(Never) declaration validation ---
+// --- async/throws + effects(Never) declaration validation ---
 
-func f1() performs(Never) async -> Int { 42 }
-// expected-error @-1 {{'async' cannot be combined with 'performs(Never)' because async execution requires allocation}}
+func f1() effects(Never) async -> Int { 42 }
+// expected-error @-1 {{'async' cannot be combined with 'effects(Never)' because async execution requires allocation}}
 
-func f2() performs(Never) throws -> Int { 42 }
-// expected-error @-1 {{'throws' without a concrete error type cannot be combined with 'performs(Never)'; use typed 'throws(ConcreteError)' instead}}
+func f2() effects(Never) throws -> Int { 42 }
+// expected-error @-1 {{'throws' without a concrete error type cannot be combined with 'effects(Never)'; use typed 'throws(ConcreteError)' instead}}
 
 struct DivByZero: Error {}
-func f3() performs(Never) throws(DivByZero) -> Int { 42 } // OK
+func f3() effects(Never) throws(DivByZero) -> Int { 42 } // OK
 
-func f4() performs(Never) -> Int { 42 } // OK
+func f4() effects(Never) -> Int { 42 } // OK
 
-func f5() performs(Never) throws(Never) -> Int { 42 } // OK
+func f5() effects(Never) throws(Never) -> Int { 42 } // OK
 
-func f6() performs(Never) async throws -> Int { 42 }
-// expected-error @-1 {{'async' cannot be combined with 'performs(Never)' because async execution requires allocation}}
-// expected-error @-2 {{'throws' without a concrete error type cannot be combined with 'performs(Never)'; use typed 'throws(ConcreteError)' instead}}
+func f6() effects(Never) async throws -> Int { 42 }
+// expected-error @-1 {{'async' cannot be combined with 'effects(Never)' because async execution requires allocation}}
+// expected-error @-2 {{'throws' without a concrete error type cannot be combined with 'effects(Never)'; use typed 'throws(ConcreteError)' instead}}
 
-func f7() performs(Never) async throws(DivByZero) -> Int { 42 }
-// expected-error @-1 {{'async' cannot be combined with 'performs(Never)' because async execution requires allocation}}
+func f7() effects(Never) async throws(DivByZero) -> Int { 42 }
+// expected-error @-1 {{'async' cannot be combined with 'effects(Never)' because async execution requires allocation}}
 
 struct PureStruct {
-  init() performs(Never) {}
+  init() effects(Never) {}
 }
 
 // --- Unannotated callee rejection ---
 
 func unannotated() {}
-func pureCallee() performs(Never) -> Int { 42 }
-func fsCallee() performs(FileSystem) {}
+func pureCallee() effects(Never) -> Int { 42 }
+func fsCallee() effects(FileSystem) {}
 
-// performs(Never) calling unannotated — ERROR
-func testNeverCallsUnannotated() performs(Never) {
-  unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'performs' clause}}
+// effects(Never) calling unannotated — ERROR
+func testNeverCallsUnannotated() effects(Never) {
+  unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'effects' clause}}
 }
 
-// performs(Never) calling performs(Never) — OK
-func testNeverCallsPure() performs(Never) {
+// effects(Never) calling effects(Never) — OK
+func testNeverCallsPure() effects(Never) {
   _ = pureCallee()
 }
 
-// performs(FileSystem) calling unannotated — ERROR
-func testFSCallsUnannotated() performs(FileSystem) {
-  unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'performs' clause}}
+// effects(FileSystem) calling unannotated — ERROR
+func testFSCallsUnannotated() effects(FileSystem) {
+  unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'effects' clause}}
 }
 
-// performs(FileSystem) calling performs(FileSystem) — OK
-func testFSCallsFS() performs(FileSystem) {
+// effects(FileSystem) calling effects(FileSystem) — OK
+func testFSCallsFS() effects(FileSystem) {
   fsCallee()
 }
 
-// performs(FileSystem) calling performs(Never) — OK (subset)
-func testFSCallsPure() performs(FileSystem) {
+// effects(FileSystem) calling effects(Never) — OK (subset)
+func testFSCallsPure() effects(FileSystem) {
   _ = pureCallee()
 }
 
@@ -72,10 +72,10 @@ func testUnrestrictedCallsAll() {
 // do...handle body calling unannotated — ERROR (narrowing scope is restricted)
 func testDoHandleCallsUnannotated() {
   struct MockFS: FileSystem {
-    init() performs(Never) {}
+    init() effects(Never) {}
     mutating func readFile(at: String) -> String { "" }
   }
   do {
-    unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'performs' clause}}
+    unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'effects' clause}}
   } handle MockFS() as FileSystem
 }
