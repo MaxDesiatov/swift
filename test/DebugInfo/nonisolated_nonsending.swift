@@ -9,7 +9,6 @@ public struct S: Sendable {
   public func f(p: [any P]) async {
     let x: [@Sendable (Int) async -> ()] = p.map { $0.f }
 
-    // FIXME: crashes
-    //let y = p.map { $0.f }
+    let y = p.map { $0.f }
   }
 }
