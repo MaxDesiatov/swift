@@ -138,17 +138,17 @@ class EmscriptenSwiftSDK(product.Product):
                 if os.path.isdir(d):
                     shutil.rmtree(d)
 
-        helpers.build_libxml2(
-            self.args, self.toolchain, self.source_dir, self.build_dir,
-            swift_host_triple, clang_multiarch_triple,
-            False, sysroot, append_cmake_opts)
-        helpers.build_foundation(
-            self.args, self.toolchain, self.source_dir, self.build_dir,
-            swift_host_triple, clang_multiarch_triple,
-            sysroot, dest_dir, host_toolchain_path, append_cmake_opts)
-        helpers.build_swift_testing(
-            self.args, self.toolchain, self.source_dir, self.build_dir,
-            swift_host_triple, dest_dir, append_cmake_opts)
+        # helpers.build_libxml2(
+        #    self.args, self.toolchain, self.source_dir, self.build_dir,
+        #    swift_host_triple, clang_multiarch_triple,
+        #    False, sysroot, append_cmake_opts)
+        # helpers.build_foundation(
+        #    self.args, self.toolchain, self.source_dir, self.build_dir,
+        #    swift_host_triple, clang_multiarch_triple,
+        #    sysroot, dest_dir, host_toolchain_path, append_cmake_opts)
+        # helpers.build_swift_testing(
+        #    self.args, self.toolchain, self.source_dir, self.build_dir,
+        #    swift_host_triple, dest_dir, append_cmake_opts)
         # helpers.build_xctest(
         #     self.args, self.toolchain, self.source_dir, self.build_dir,
         #     swift_host_triple, dest_dir, append_cmake_opts)
