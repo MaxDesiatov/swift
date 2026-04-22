@@ -86,16 +86,25 @@ class WASISwiftSDK(product.Product):
     def build(self, host_target):
         build_root = os.path.dirname(self.build_dir)
 
-        target_packages = []
+        swift_version = os.environ.get('TOOLCHAIN_VERSION',
+                                       'swift-DEVELOPMENT-SNAPSHOT')
+        swift_run = helpers.find_swift_run(
+            self.args, self.toolchain, host_target,
+            self.install_toolchain_path(host_target))
+
         # NOTE: We have two types of target triples:
         # 1. swift_host_triple: The triple used by the Swift compiler's
         #    '-target' option
         # 2. clang_multiarch_triple: The triple used by Clang to find library
         #    and header paths from the sysroot
         #    https://github.com/llvm/llvm-project/blob/73ef397fcba35b7b4239c00bf3e0b4e689ca0add/clang/lib/Driver/ToolChains/WebAssembly.cpp#L29-L36
+        # TODO: Include wasip1-threads in the Swift SDK once WasmKit supports
+        # the wasip1-threads target. Until then the per-triple install tree
+        # for p1-threads is still built (stdlib + foundation + swift-testing
+        # + xctest) so downstream tools can consume it directly, but no
+        # Swift SDK artifact is added to the shared `.artifactbundle`.
         for swift_host_triple, clang_multiarch_triple, build_basename, build_sdk, has_pthread in [
             ('wasm32-unknown-wasip1', 'wasm32-wasip1', 'wasistdlib', True, False),
-            # TODO: Include p1-threads in the Swift SDK once sdk-generator supports multi-target SDK
             ('wasm32-unknown-wasip1-threads', 'wasm32-wasip1-threads',
              'wasithreadsstdlib', False, True),
         ]:
@@ -139,19 +148,22 @@ class WASISwiftSDK(product.Product):
                 self.args, self.toolchain, self.source_dir, self.build_dir,
                 swift_host_triple, dest_dir, append_cmake_opts)
 
+            # Append this triple's Swift SDK to the shared wasm
+            # `.artifactbundle`. The bundle is reused across wasi /
+            # emscripten via `--incremental` + `--bundle-name
+            # canonical_bundle_name()`. wasip1-threads is skipped — see
+            # the TODO above the loop.
             if build_sdk:
-                target_packages.append(
-                    (swift_host_triple, sysroot, dest_dir))
-
-        swift_version = os.environ.get('TOOLCHAIN_VERSION',
-                                       'swift-DEVELOPMENT-SNAPSHOT')
-
-        swift_run = helpers.find_swift_run(
-            self.args, self.toolchain, host_target,
-            self.install_toolchain_path(host_target))
-        helpers.generate_swift_sdk(
-            swift_run, self.source_dir, self.build_dir,
-            target_packages, swift_version)
+                helpers.generate_swift_sdk(
+                    swift_run=swift_run,
+                    source_dir=self.source_dir,
+                    build_dir=self.build_dir,
+                    triple=swift_host_triple,
+                    sysroot=sysroot,
+                    package_path=dest_dir,
+                    bundle_name=helpers.canonical_bundle_name(),
+                    swift_version=swift_version,
+                )
 
     def test(self, host_target):
         pass
