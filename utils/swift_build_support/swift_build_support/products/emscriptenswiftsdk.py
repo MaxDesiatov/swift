@@ -153,17 +153,26 @@ class EmscriptenSwiftSDK(product.Product):
         #     self.args, self.toolchain, self.source_dir, self.build_dir,
         #     swift_host_triple, dest_dir, append_cmake_opts)
 
-        target_packages = [(swift_host_triple, sysroot, dest_dir)]
-
         swift_version = os.environ.get('TOOLCHAIN_VERSION',
                                        'swift-DEVELOPMENT-SNAPSHOT')
 
         swift_run = helpers.find_swift_run(
             self.args, self.toolchain, host_target,
             self.install_toolchain_path(host_target))
+        # Append the Emscripten Swift SDK to the shared wasm
+        # `.artifactbundle`. The bundle is reused across wasi /
+        # wasi-threads / emscripten via `--incremental` +
+        # `--bundle-name canonical_bundle_name()`.
         helpers.generate_swift_sdk(
-            swift_run, self.source_dir, self.build_dir,
-            target_packages, swift_version)
+            swift_run=swift_run,
+            source_dir=self.source_dir,
+            build_dir=self.build_dir,
+            triple=swift_host_triple,
+            sysroot=sysroot,
+            package_path=dest_dir,
+            bundle_name=helpers.canonical_bundle_name(),
+            swift_version=swift_version,
+        )
 
     def test(self, host_target):
         pass

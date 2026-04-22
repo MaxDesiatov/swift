@@ -20,13 +20,31 @@ has the signature::
 
     def append_platform_cmake_options(cmake_options, extra_swift_flags):
         ...
+
+Multiple wasm Swift SDKs (e.g. wasip1, wasip1-threads, emscripten) are
+merged into a single ``.artifactbundle`` on disk by invoking
+``swift-sdk-generator`` once per triple with the same ``--bundle-name``
+and ``--incremental``. ``canonical_bundle_name()`` returns the shared
+bundle name used by every wasm product so they all land in the same
+output directory.
 """
 
-import json
 import os
 
 from .cmake_product import CMakeProduct
 from .. import shell
+
+
+# Single bundle name shared by every wasm Swift SDK product (WASI +
+# Emscripten). Picked once here so the products don't drift apart and
+# accidentally write into separate `.artifactbundle` directories.
+_CANONICAL_BUNDLE_NAME = "swift-wasm-sdk"
+
+
+def canonical_bundle_name():
+    """Return the on-disk ``.artifactbundle`` directory name (without the
+    ``.artifactbundle`` suffix) shared by every wasm Swift SDK product."""
+    return _CANONICAL_BUNDLE_NAME
 
 
 def target_package_path(build_dir, swift_host_triple):
@@ -234,40 +252,57 @@ def find_swift_run(args, toolchain, host_target, install_toolchain_path):
         return os.path.join(toolchain_path, 'bin', 'swift-run')
 
 
-def generate_swift_sdk(swift_run, source_dir, build_dir,
-                       target_packages, swift_version):
-    """Write a recipe JSON file and invoke swift-sdk-generator.
+def generate_swift_sdk(swift_run, source_dir, build_dir, triple, sysroot,
+                       package_path, bundle_name, swift_version,
+                       sdk_name=None):
+    """Invoke ``swift-sdk-generator make-wasm-sdk`` for a single triple.
 
-    *target_packages* is a list of ``(triple, sysroot, package_path)``
-    tuples.
+    Each call appends one Swift SDK artifact to the shared
+    ``.artifactbundle`` named ``bundle_name``. ``--incremental`` is always
+    passed so that subsequent invocations (for other wasm triples) merge
+    into the existing bundle's ``info.json`` instead of overwriting it.
+
+    Parameters:
+        swift_run: absolute path to the ``swift-run`` binary.
+        source_dir: absolute path to the swift-sdk-generator source tree
+            (passed as SwiftPM ``--package-path``).
+        build_dir: absolute path to the SwiftPM build directory.
+        triple: target triple, e.g. ``wasm32-unknown-wasip1`` or
+            ``wasm32-unknown-emscripten``.
+        sysroot: absolute path to the platform sysroot for this triple.
+        package_path: absolute path to the per-triple Swift package
+            (the ``Toolchains/<triple>/`` directory previously
+            populated by ``install_stdlib_and_resources``).
+        bundle_name: ``.artifactbundle`` directory name (without the
+            ``.artifactbundle`` suffix). Pass
+            :func:`canonical_bundle_name` to land in the shared bundle.
+        swift_version: passed through to swift-sdk-generator's
+            ``--swift-version`` (recorded in the SDK metadata).
+        sdk_name: optional artifact ID for this SDK inside the bundle's
+            ``info.json``. When omitted (the default), swift-sdk-generator
+            computes its own per-triple ``defaultArtifactID``
+            (``<swift_version>_wasm``, ``<swift_version>_wasm-threads``,
+            ``<swift_version>_wasm-emscripten``), which is sufficient to
+            keep the artifact keys distinct in a shared bundle.
     """
-    recipe = {
-        'schemaVersion': '0.2',
-        'recipeType': 'wasm',
-        'swiftVersion': swift_version,
-        'targets': [
-            {
-                'triple': triple,
-                'sysroot': sysroot,
-                'swiftPackagePath': package_path,
-            }
-            for triple, sysroot, package_path in target_packages
-        ],
-    }
-    recipe_path = os.path.join(build_dir, 'wasm-sdk-recipe.json')
-    with open(recipe_path, 'w') as f:
-        json.dump(recipe, f, indent=2)
-
     run_args = [
         swift_run,
         '--package-path', source_dir,
         '--build-path', build_dir,
         'swift-sdk-generator',
         'make-wasm-sdk',
-        '--recipe-path', recipe_path,
+        '--target', triple,
+        '--target-sysroot', sysroot,
+        '--target-swift-package-path', package_path,
+        '--bundle-name', bundle_name,
+        '--swift-version', swift_version,
     ]
+    if sdk_name is not None:
+        run_args.extend(['--sdk-name', sdk_name])
+    run_args.append('--incremental')
 
-    env = dict(os.environ)
-    env['SWIFTCI_USE_LOCAL_DEPS'] = '1'
-
-    shell.call(run_args, env=env)
+    # Only the override is passed: `shell.call` merges into `os.environ`
+    # internally, and it also echoes the provided env dict to stderr — so
+    # passing `dict(os.environ)` here would dump every host env var
+    # (including CI secrets) into the build log.
+    shell.call(run_args, env={'SWIFTCI_USE_LOCAL_DEPS': '1'})
