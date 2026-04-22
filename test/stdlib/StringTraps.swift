@@ -11,8 +11,7 @@
 // 5.7 so that we can test new behavior even if the SDK we're using predates it.
 
 // REQUIRES: executable_test
-// UNSUPPORTED: OS=wasip1
-// UNSUPPORTED: OS=emscripten
+// UNSUPPORTED: OS=wasip1 || OS=emscripten
 
 import StdlibUnittest
 #if _runtime(_ObjC)
