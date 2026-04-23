@@ -17,7 +17,6 @@ from . import cmake_product
 from . import emscriptensysroot
 from . import llvm
 from . import swift
-from . import wasmkit
 from .. import cmake
 from .. import shell
 
@@ -284,5 +283,4 @@ class EmscriptenStdlib(cmake_product.CMakeProduct):
         return [llvm.LLVM,
                 emscriptensysroot.EmscriptenSysroot,
                 emscriptensysroot.EmscriptenLLVMRuntimeLibs,
-                wasmkit.WasmKit,
                 swift.Swift]
