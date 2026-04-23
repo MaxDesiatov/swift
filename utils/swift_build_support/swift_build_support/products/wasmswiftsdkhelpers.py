@@ -13,20 +13,9 @@
 """
 Shared helpers for building WebAssembly Swift SDK bundles.
 
-These functions are used by both WasmSwiftSDK (WASI) and
-EmscriptenSwiftSDK products. Platform-specific CMake options are
-injected via the ``append_platform_cmake_options`` callable, which
-has the signature::
-
-    def append_platform_cmake_options(cmake_options, extra_swift_flags):
-        ...
-
-Multiple wasm Swift SDKs (e.g. wasip1, wasip1-threads, emscripten) are
-merged into a single ``.artifactbundle`` on disk by invoking
-``swift-sdk-generator`` once per triple with the same ``--bundle-name``
-and ``--incremental``. ``canonical_bundle_name()`` returns the shared
-bundle name used by every wasm product so they all land in the same
-output directory.
+These functions are used by both `WASISwiftSDK` and
+`EmscriptenSwiftSDK` products. Platform-specific CMake options are
+injected via the ``append_platform_cmake_options`` function.
 """
 
 import os
