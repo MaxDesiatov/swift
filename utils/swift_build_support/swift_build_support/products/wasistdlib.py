@@ -243,7 +243,7 @@ class WASIStdlib(cmake_product.CMakeProduct):
             'PATH': os.path.pathsep.join(bin_paths),
             # FIXME: WasmKit takes too long to run these exhaustive tests for now
             'LIT_FILTER_OUT':
-                '(Concurrency/Runtime/clock.swift|stdlib/StringIndex.swift|stdlib/KeyPath.swift)',
+                '(Concurrency/Runtime/clock.swift|stdlib/StringIndex.swift)',
         }
 
         # Embedded stdlib is not built for the threads triple, don't include embedded tests for it.
