@@ -75,15 +75,10 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
 
   ArgStringList Arguments;
 
-  bool isEmscripten = getTriple().getOS() == llvm::Triple::Emscripten;
-
-  // emcc already targets Emscripten, so skip --target and linker selection.
-  if (!isEmscripten) {
-    std::string Target = getTriple().str();
-    if (!Target.empty()) {
-      Arguments.push_back("-target");
-      Arguments.push_back(context.Args.MakeArgString(Target));
-    }
+  std::string Target = getTriple().str();
+  if (!Target.empty()) {
+    Arguments.push_back("-target");
+    Arguments.push_back(context.Args.MakeArgString(Target));
   }
 
   switch (job.getKind()) {
@@ -98,39 +93,21 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
     llvm_unreachable("invalid link kind");
   }
 
-  // emcc manages its own linker selection, so skip -fuse-ld for Emscripten.
-  if (!isEmscripten) {
-    // Select the linker to use.
-    std::string Linker;
-    if (const Arg *A = context.Args.getLastArg(options::OPT_use_ld)) {
-      Linker = A->getValue();
-    }
-    if (!Linker.empty())
-      Arguments.push_back(context.Args.MakeArgString("-fuse-ld=" + Linker));
+  // Select the linker to use.
+  std::string Linker;
+  if (const Arg *A = context.Args.getLastArg(options::OPT_use_ld)) {
+    Linker = A->getValue();
   }
+  if (!Linker.empty())
+    Arguments.push_back(context.Args.MakeArgString("-fuse-ld=" + Linker));
 
-  // Configure the toolchain.
-  //
-  // For Emscripten targets, use `emcc` (the Emscripten compiler driver) as the
-  // linker. emcc wraps wasm-ld and also generates JavaScript runtime glue.
-  //
-  // For other WebAssembly targets (WASI etc), use `clang` to perform the link.
-  const char *LinkerDriver;
-  if (isEmscripten) {
-    LinkerDriver = "emcc";
-    if (const Arg *A = context.Args.getLastArg(options::OPT_tools_directory)) {
-      StringRef toolchainPath(A->getValue());
-      if (auto tool = llvm::sys::findProgramByName("emcc", {toolchainPath}))
-        LinkerDriver = context.Args.MakeArgString(tool.get());
-      // emcc manages its own tool search; don't pass -B.
-    }
-  } else {
-    LinkerDriver = "clang";
-    if (const Arg *A = context.Args.getLastArg(options::OPT_tools_directory)) {
-      StringRef toolchainPath(A->getValue());
-      if (auto tool = llvm::sys::findProgramByName("clang", {toolchainPath}))
-        LinkerDriver = context.Args.MakeArgString(tool.get());
-    }
+  const char *Clang = "clang";
+  if (const Arg *A = context.Args.getLastArg(options::OPT_tools_directory)) {
+    StringRef toolchainPath(A->getValue());
+
+    // If there is a clang in the toolchain folder, use that instead.
+    if (auto tool = llvm::sys::findProgramByName("clang", {toolchainPath}))
+      Clang = context.Args.MakeArgString(tool.get());
   }
 
   SmallVector<std::string, 4> RuntimeLibPaths;
@@ -153,12 +130,9 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
   addInputsOfType(Arguments, context.InputActions, file_types::TY_Object);
   addInputsOfType(Arguments, context.InputActions, file_types::TY_LLVM_BC);
 
-  // emcc manages its own sysroot, so skip --sysroot for Emscripten.
-  if (!isEmscripten) {
-    if (!context.OI.SDKPath.empty()) {
-      Arguments.push_back("--sysroot");
-      Arguments.push_back(context.Args.MakeArgString(context.OI.SDKPath));
-    }
+  if (!context.OI.SDKPath.empty()) {
+    Arguments.push_back("--sysroot");
+    Arguments.push_back(context.Args.MakeArgString(context.OI.SDKPath));
   }
 
   // Add any autolinking scripts to the arguments
@@ -188,53 +162,6 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
     llvm::report_fatal_error(linkFile + " not found");
   }
 
-  // Pass down an optimization level
-  // TODO: map Swift optimization levels to Clang optimization levels
-
-  // Copied from swift-driver's WebAssemblyToolchain+LinkerSupport.swift:
-  // WebAssembly doesn't reserve low addresses. But without "extra inhabitants"
-  // of the pointer representation, runtime performance and memory footprint are
-  // worse. So reserve the low addresses by telling the linker the lowest valid
-  // address (global base). The value must be synchronized with
-  // SWIFT_ABI_WASM32_LEAST_VALID_POINTER in the runtime.
-  if (isEmscripten) {
-    // Use emcc settings instead of raw wasm-ld flags. Setting -sGLOBAL_BASE
-    // prevents emcc from auto-enabling --stack-first, which would place the
-    // stack at address 0 and violate Swift's assumption that addresses below
-    // LEAST_VALID_POINTER are unused.
-    Arguments.push_back(context.Args.MakeArgString(
-        Twine("-sGLOBAL_BASE=") +
-        std::to_string(SWIFT_ABI_WASM32_LEAST_VALID_POINTER)));
-    Arguments.push_back(context.Args.MakeArgString(
-        Twine("-sTABLE_BASE=") +
-        std::to_string(SWIFT_ABI_WASM32_LEAST_VALID_POINTER)));
-  } else {
-    Arguments.push_back("-Xlinker");
-    Arguments.push_back(context.Args.MakeArgString(
-        Twine("--global-base=") +
-        std::to_string(SWIFT_ABI_WASM32_LEAST_VALID_POINTER)));
-    Arguments.push_back("-Xlinker");
-    Arguments.push_back(context.Args.MakeArgString(
-        Twine("--table-base=") +
-        std::to_string(SWIFT_ABI_WASM32_LEAST_VALID_POINTER)));
-  }
-
-  // Set slightly higher than the default (64K) stack size so that basic
-  // workflows like Swift Testing can run within this limited stack space.
-  constexpr int SWIFT_WASM_DEFAULT_STACK_SIZE = 1024 * 128;
-  if (isEmscripten) {
-    Arguments.push_back(context.Args.MakeArgString(
-        Twine("-sSTACK_SIZE=") +
-        std::to_string(SWIFT_WASM_DEFAULT_STACK_SIZE)));
-  } else {
-    Arguments.push_back("-Xlinker");
-    Arguments.push_back("-z");
-    Arguments.push_back("-Xlinker");
-    Arguments.push_back(context.Args.MakeArgString(
-        Twine("stack-size=") +
-        std::to_string(SWIFT_WASM_DEFAULT_STACK_SIZE)));
-  }
-
   // Delegate to Clang for sanitizers. It will figure out the correct linker
   // options.
   if (job.getKind() == LinkKind::Executable && context.OI.SelectedSanitizers) {
@@ -260,26 +187,30 @@ toolchains::WebAssembly::constructInvocation(const DynamicLinkJobAction &job,
     Arguments.push_back("-v");
   }
 
+  // WebAssembly doesn't reserve low addresses But without "extra inhabitants"
+  // of the pointer representation, runtime performance and memory footprint are
+  // worse. So assume that compiler driver uses wasm-ld and --global-base=4096
+  // to reserve low 4KB.
+  Arguments.push_back("-Xlinker");
+  Arguments.push_back(context.Args.MakeArgString(
+      Twine("--global-base=") +
+      std::to_string(SWIFT_ABI_WASM32_LEAST_VALID_POINTER)));
+  Arguments.push_back("-Xlinker");
+  Arguments.push_back(context.Args.MakeArgString(
+      Twine("--table-base=") +
+      std::to_string(SWIFT_ABI_WASM32_LEAST_VALID_POINTER)));
+
   // These custom arguments should be right before the object file at the end.
   context.Args.AddAllArgs(Arguments, options::OPT_linker_option_Group);
   context.Args.AddAllArgs(Arguments, options::OPT_Xlinker);
-  // -Xclang-linker passes arguments directly to clang when it acts as
-  // the linker driver. emcc is not clang, so skip these for Emscripten.
-  if (!isEmscripten) {
-    context.Args.AddAllArgValues(Arguments, options::OPT_Xclang_linker);
-  }
-  // -Xemcc-linker passes arguments directly to emcc when it acts as
-  // the linker driver for Emscripten targets.
-  if (isEmscripten) {
-    context.Args.AddAllArgValues(Arguments, options::OPT_Xemcc_linker);
-  }
+  context.Args.AddAllArgValues(Arguments, options::OPT_Xclang_linker);
 
   // This should be the last option, for convenience in checking output.
   Arguments.push_back("-o");
   Arguments.push_back(
       context.Args.MakeArgString(context.Output.getPrimaryOutputFilename()));
 
-  InvocationInfo II{LinkerDriver, Arguments};
+  InvocationInfo II{Clang, Arguments};
   II.allowsResponseFiles = true;
 
   return II;
