@@ -6,38 +6,6 @@
 
 // Regression test for a 32-bit-only mask-overlap bug in `ComputedArgumentSize`
 // (`stdlib/public/core/KeyPath.swift`).
-//
-// On 32-bit targets the buggy `alignmentMask = 0x6000_0000` (bits 29-30) does
-// not cover bit 31, which is where the `alignment = 16` setter actually
-// writes (`2 &<< 30 == 0x8000_0000`). As a result, the alignment field reads
-// back as 0 even though it was set to 16.
-//
-// The field is read during keypath append in two places:
-//
-//   1. `calculateAppendedKeyPathSize` — uses the source component's
-//      `.alignment` to decide whether to add alignment padding to the new
-//      buffer. Buggy: guard fails (reads 0), no padding reserved, buffer is
-//      under-allocated for a 16-aligned argument.
-//   2. `_storeInto` — writes the argument bytes into the under-allocated
-//      buffer.
-//
-// End-user-visible symptom: constructing any appended keypath whose captured
-// argument type has 16-byte alignment (e.g., `SIMD4<Int32>`) under the buggy
-// mask traps inside the stdlib during projection, because the stdlib detects
-// the out-of-bounds write into the undersized buffer. The fix
-// (`alignmentMask = 0xC000_0000`, bits 30-31) makes alignment round-trip
-// correctly; the buffer is sized correctly; projection returns the expected
-// value.
-//
-// This test exercises both paths by constructing `\Outer.inner[arg]`, which
-// forces `appending(path:)` through the buggy codepath. It asserts the
-// normally-computed return value (`expectEqual(expected, observed)`). Under
-// the buggy mask the process traps before `expectEqual` runs; lit records
-// this as a FAIL via non-zero exit code, which is a user-observable regression
-// (a normally-constructed keypath that used to work now traps).
-//
-// On 64-bit the masks are already disjoint; this test compiles, runs, and
-// trivially passes on 64-bit targets.
 
 import StdlibUnittest
 
@@ -46,7 +14,7 @@ let tests = TestSuite("KeyPath32Bit")
 struct Inner {
   let base: Int
   subscript(idx: SIMD4<Int32>) -> Int {
-    return base &+ Int(idx[0]) &+ Int(idx[1]) &+ Int(idx[2]) &+ Int(idx[3])
+    return base + Int(idx[0]) + Int(idx[1]) + Int(idx[2]) + Int(idx[3])
   }
 }
 
