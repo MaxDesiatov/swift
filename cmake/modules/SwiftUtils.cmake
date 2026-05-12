@@ -254,6 +254,39 @@ function(is_sdk_requested name result_var_name)
   endif()
 endfunction()
 
+# Canonical list of SDKs that target a Wasm runtime. Keep in sync with
+# SWIFT_EMBEDDED_${SDK}_{SUFFIX,TRIPLE} below.
+set(SWIFT_WASM_HOSTED_SDKS "WASI;EMSCRIPTEN")
+
+# SDK -> (embedded variant suffix, embedded variant triple) lookup used by
+# test/CMakeLists.txt when it generates the `check-swift-embedded-<sdk>`
+# target. The triples intentionally do not track SWIFT_ENABLE_WASI_THREADS;
+# the embedded stdlib is always built for the non-threads triple.
+set(SWIFT_EMBEDDED_WASI_SUFFIX       "-embedded-wasi")
+set(SWIFT_EMBEDDED_WASI_TRIPLE       "wasm32-unknown-wasip1")
+set(SWIFT_EMBEDDED_EMSCRIPTEN_SUFFIX "-embedded-emscripten")
+set(SWIFT_EMBEDDED_EMSCRIPTEN_TRIPLE "wasm32-unknown-emscripten")
+
+# TRUE when `sdk` targets Wasm through a hosted sysroot (WASI, Emscripten).
+#
+# Distinct from "the triple is Wasm": the freestanding Wasm triples
+# (`wasm{32,64}-unknown-none-wasm`) are emitted by the embedded stdlib
+# whenever LLVM can target WebAssembly and do not correspond to any SDK,
+# so they never flow through this predicate.
+#
+# Used by test/CMakeLists.txt to:
+#   - skip embedded feature flags on the non-embedded lit config; and
+#   - generate the per-SDK `check-swift-embedded-<sdk>` target from the
+#     SWIFT_EMBEDDED_${SDK}_{SUFFIX,TRIPLE} registry above.
+function(sdk_has_wasm_sysroot sdk result_var_name)
+  list(FIND SWIFT_WASM_HOSTED_SDKS "${sdk}" _idx)
+  if(_idx GREATER_EQUAL 0)
+    set("${result_var_name}" TRUE PARENT_SCOPE)
+  else()
+    set("${result_var_name}" FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
 # Append Swift compilation-caching flags (driven by the SWIFT_CACHING_BUILD_*
 # cache variables) to the named list variable. Callers are responsible for
 # deciding whether caching applies to their target (e.g. checking

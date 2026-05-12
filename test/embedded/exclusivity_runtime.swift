@@ -10,7 +10,7 @@
 // RUN: %FileCheck -check-prefix YESOPT %s < %t/yesopt.ll
 
 // Run without optimization.
-// RUN: %target-clang %t/a.o %target-embedded-posix-shim -o %t/noopt.out -L%swift_obj_root/lib/swift/embedded/%module-target-triple %target-clang-resource-dir-opt -lswift_Concurrency %target-swift-default-executor-opt -dead_strip -lswiftExclusivitySingleThreaded
+// RUN: %target-embedded-link %t/a.o %target-embedded-posix-shim -o %t/noopt.out -L%swift_obj_root/lib/swift/embedded/%module-target-triple %target-clang-resource-dir-opt -lswift_Concurrency %target-swift-default-executor-opt -dead_strip -lswiftExclusivitySingleThreaded
 // RUN: %target-run not --crash %t/noopt.out
 
 // Build with optimization.
@@ -22,7 +22,7 @@
 // RUN: %FileCheck -check-prefix NOOPT %s < %t/noopt.ll
 
 // Run with optimization.
-// RUN: %target-clang %t/a.o %target-embedded-posix-shim -o %t/opt.out -L%swift_obj_root/lib/swift/embedded/%module-target-triple %target-clang-resource-dir-opt -lswift_Concurrency %target-swift-default-executor-opt -dead_strip -lswiftExclusivitySingleThreaded
+// RUN: %target-embedded-link %t/a.o %target-embedded-posix-shim -o %t/opt.out -L%swift_obj_root/lib/swift/embedded/%module-target-triple %target-clang-resource-dir-opt -lswift_Concurrency %target-swift-default-executor-opt -dead_strip -lswiftExclusivitySingleThreaded
 // RUN: %target-run not --crash %t/opt.out
 
 // REQUIRES: executable_test
@@ -32,6 +32,14 @@
 // REQUIRES: swift_feature_EmbeddedDynamicExclusivity
 
 // UNSUPPORTED: OS=wasip1
+// UNSUPPORTED: OS=emscripten
+// `%target-run not --crash %t/...out` wraps the binary with LLVM's `not` host
+// tool to assert the wasm program traps. emscripten-run.py invokes `node` and
+// passes its arguments verbatim, so node tries to load `not` as a JS module
+// (`Error: Cannot find module 'not'`). Adapting the test would require either
+// teaching emscripten-run.py to recognise `not --crash` (mirroring how WASI
+// expects-crash tests are structured) or rewriting the RUN line to
+// `%target-not-crash %target-run %t/...out`. Out of scope for this migration.
 
 struct NC: ~Copyable {
   var i: Int = 1

@@ -10,6 +10,13 @@
 // REQUIRES: executable_test
 // REQUIRES: swift_feature_Embedded
 
+// UNSUPPORTED: OS=emscripten
+// Dictionary literals trigger the embedded stdlib's hash-seed initialization,
+// which calls arc4random_buf — not provided by emscripten's musl-derived libc
+// (`wasm-ld: error: undefined symbol: arc4random_buf`). Same root cause as
+// dependencies-random.swift; a future emscripten-rng-support.c shim mirroring
+// linux-rng-support.c would unblock both tests.
+
 // BEGIN MyModule.swift
 
 var dict: [Int:Int] = [1: 2, 3: 4]
