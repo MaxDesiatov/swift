@@ -132,10 +132,12 @@ class EmscriptenHostLLVM(product.Product):
         sys.exit(1)
 
     def _cache_file_path(self):
-        # source_dir is <source_root>/llvm-project/llvm; cache lives under
-        # the sibling clang/ directory of the same monorepo checkout.
-        return os.path.join(os.path.dirname(self.source_dir),
-                            'clang', 'cmake', 'caches', 'EmscriptenHost.cmake')
+        # The cache lives in the Swift repo (Swift's build-script drives this
+        # build), not in the LLVM checkout. self.source_dir is
+        # <source_root>/llvm-project/llvm, so the Swift repo is a sibling.
+        source_root = os.path.dirname(os.path.dirname(self.source_dir))
+        return os.path.join(source_root, 'swift', 'cmake', 'caches',
+                            'EmscriptenHostLLVM.cmake')
 
     def _native_llvm_tblgen(self, host_target):
         llvm_bin = os.path.join(self._host_llvm_build_dir(host_target), 'bin')
