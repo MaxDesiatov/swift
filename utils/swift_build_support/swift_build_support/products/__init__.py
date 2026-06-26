@@ -14,6 +14,7 @@ from .benchmarks import Benchmarks
 from .cmark import CMark
 from .curl import LibCurl
 from .earlyswiftdriver import EarlySwiftDriver
+from .emscriptenhostllvm import EmscriptenHostLLVM
 from .emscriptenstdlib import EmscriptenStdlib
 from .emscriptenswiftsdk import EmscriptenSwiftSDK
 from .emscriptensysroot import EmscriptenSysroot, EmscriptenLLVMRuntimeLibs
@@ -92,6 +93,7 @@ __all__ = [
     'WASIStdlib',
     'WASIThreadsStdlib',
     'WASISwiftSDK',
+    'EmscriptenHostLLVM',
     'EmscriptenSysroot',
     'EmscriptenLLVMRuntimeLibs',
     'EmscriptenStdlib',

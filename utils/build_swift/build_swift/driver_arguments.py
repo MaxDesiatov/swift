@@ -906,6 +906,10 @@ def create_argument_parser():
            toggle_true('build_emscriptenstdlib'),
            help='build the stdlib for Emscripten target into a '
                 'separate build directory')
+    option(['--build-emscripten-host-llvm'],
+           toggle_true('build_emscripten_host_llvm'),
+           help='cross-build LLVM static libraries to run hosted on a '
+                'WebAssembly (Emscripten) runtime')
     option(['--emscripten-path'], store_path,
            help='path to the Emscripten checkout')
     option(['--skip-test-emscripten-stdlib'],
