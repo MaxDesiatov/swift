@@ -3,6 +3,13 @@
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   set(UUID_INCLUDE "")
   set(UUID_LIBRARIES "")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+  # Emscripten's sysroot ships <uuid/uuid.h> and implements the uuid_* symbols in
+  # its auto-linked libc, so (like Darwin) no separate libuuid is needed. The
+  # random/time generator variants are absent from Emscripten's header; UUID.cpp
+  # maps them onto uuid_generate under __EMSCRIPTEN__.
+  set(UUID_INCLUDE "")
+  set(UUID_LIBRARIES "")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
   set(UUID_INCLUDE "")
   set(UUID_LIBRARIES "rpcrt4.lib")

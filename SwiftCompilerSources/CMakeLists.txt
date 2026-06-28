@@ -231,6 +231,8 @@ function(add_swift_compiler_modules_library name)
     string(STRIP "${swiftly_dir}" swiftly_dir)
 
     list(APPEND sdk_option "-I" "${swiftly_dir}/usr/lib" "-I" "${swiftly_dir}/usr/lib")
+  elseif(SWIFT_HOST_VARIANT_SDK STREQUAL "EMSCRIPTEN")
+    list(APPEND sdk_option "-I" "${SWIFT_PATH_TO_SWIFT_SDK}/lib")
   else()
     list(APPEND sdk_option "-I" "${swift_exec_bin_dir}/../lib" "-I" "${sdk_path}/usr/lib")
   endif()
@@ -308,7 +310,13 @@ function(add_swift_compiler_modules_library name)
       COMMENT "Building swift module ${module}")
 
     if(BOOTSTRAPPING_MODE STREQUAL "CROSSCOMPILE")
-      add_dependencies(${dep_target} swift-stdlib-${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_LIB_SUBDIR}-${SWIFT_HOST_VARIANT_ARCH})
+      # The in-tree stdlib target only exists when SWIFT_BUILD_STDLIB is ON. When
+      # cross-compiling the compiler modules against a *prebuilt* target stdlib
+      # (e.g. a wasm-emscripten host), that target is absent, so guard the
+      # ordering dependency on its existence.
+      if(TARGET swift-stdlib-${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_LIB_SUBDIR}-${SWIFT_HOST_VARIANT_ARCH})
+        add_dependencies(${dep_target} swift-stdlib-${SWIFT_SDK_${SWIFT_HOST_VARIANT_SDK}_LIB_SUBDIR}-${SWIFT_HOST_VARIANT_ARCH})
+      endif()
     endif()
     set("${module}_dep_target" ${dep_target})
     set(all_module_targets ${all_module_targets} ${dep_target})

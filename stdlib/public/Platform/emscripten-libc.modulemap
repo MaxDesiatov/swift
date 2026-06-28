@@ -10,12 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-module SwiftEmscriptenLibc [system] {
+// `[no_undeclared_includes]` is required for C++ interop (`-cxx-interoperability-mode`):
+// without it, building this pure-C libc module in C++ mode lets an internal
+// `#include <inttypes.h>` resolve to libc++'s `std_inttypes_h` wrapper module (libc++
+// is searched ahead of the C library and cannot be reordered), which transitively
+// re-requires this module — a cyclic module dependency. The attribute restricts this
+// module's build to its own declared headers, so the include resolves to its own C
+// `inttypes.h` and the cycle is broken. Clang builtin (`_Builtin_*`) modules such as
+// `<stddef.h>` remain available regardless, so this does not sever the C builtins.
+module SwiftEmscriptenLibc [system] [no_undeclared_includes] {
   header "stdc-predef.h"
   header "features.h"
 
   // C standard library
-  header "complex.h"
   header "ctype.h"
   header "errno.h"
   header "fenv.h"
@@ -74,4 +81,19 @@ module SwiftEmscriptenLibc [system] {
   // includes this header and maps POSIX errno names to __WASI_ERRNO_* values.
   header "wasi/api.h"
   export *
+
+  // complex.h defines `#define complex _Complex` (musl, never #undef'd). Under C++
+  // interop this macro leaks through the parent's `export *` into libc++'s `std` Clang
+  // module and breaks its `template class complex` (<complex>:287 "declaration of
+  // anonymous class must be a definition"). Isolating complex.h into an `explicit`
+  // submodule keeps it out of the parent's `export *` (explicit submodules are not
+  // auto-imported), so the macro no longer leaks. complex.h's C functions take
+  // `_Complex` parameters and were never importable into Swift, so no Swift-visible
+  // API is lost; keeping the header in its own submodule (rather than dropping it)
+  // preserves a clean module owner for `#include <complex.h>` under the parent's
+  // `[no_undeclared_includes]`.
+  explicit module Complex {
+    header "complex.h"
+    export *
+  }
 }

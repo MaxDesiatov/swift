@@ -31,6 +31,14 @@
 #include <uuid/uuid.h>
 #endif
 
+#if defined(__EMSCRIPTEN__)
+// Emscripten's <uuid/uuid.h> declares only the generic uuid_generate, not the
+// random/time-specific variants libuuid provides elsewhere. Map both onto
+// uuid_generate (which picks a strategy itself); swift only needs unique values.
+static inline void uuid_generate_random(uuid_t out) { uuid_generate(out); }
+static inline void uuid_generate_time(uuid_t out) { uuid_generate(out); }
+#endif
+
 using namespace swift;
 
 swift::UUID::UUID(FromRandom_t) {

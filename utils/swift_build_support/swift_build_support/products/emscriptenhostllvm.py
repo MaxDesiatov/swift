@@ -26,7 +26,7 @@ class EmscriptenHostLLVM(product.Product):
 
     Reuses the native llvm-tblgen produced by the build's native LLVM product
     and drives an `emcmake cmake` configure + build using the in-tree
-    clang/cmake/caches/EmscriptenHost.cmake cache file.
+    swift/cmake/caches/EmscriptenHostLLVM.cmake cache file.
     """
 
     @classmethod
@@ -65,18 +65,24 @@ class EmscriptenHostLLVM(product.Product):
         emcmake = self._emcmake_path()
         cache_file = self._cache_file_path()
         llvm_tblgen = self._native_llvm_tblgen(host_target)
+        clang_tblgen = self._native_clang_tblgen(host_target)
 
         # Validate filesystem preconditions with actionable messages. Skipped
         # under --dry-run, where these artifacts need not exist yet.
         if not self.args.dry_run:
             if not os.path.isfile(cache_file):
-                print('error: EmscriptenHost.cmake cache not found at %s'
+                print('error: EmscriptenHostLLVM.cmake cache not found at %s'
                       % cache_file, file=sys.stderr)
                 sys.exit(1)
             if not os.path.isfile(llvm_tblgen):
                 print('error: native llvm-tblgen not found at %s; build native '
                       'LLVM (e.g. --llvm-ninja-targets=llvm-tblgen) or pass '
                       '--native-llvm-tools-path' % llvm_tblgen, file=sys.stderr)
+                sys.exit(1)
+            if not os.path.isfile(clang_tblgen):
+                print('error: native clang-tblgen not found at %s; build it (e.g. '
+                      '--llvm-ninja-targets clang-tblgen) or pass '
+                      '--native-clang-tools-path' % clang_tblgen, file=sys.stderr)
                 sys.exit(1)
 
         configure_cmd = [
@@ -86,12 +92,18 @@ class EmscriptenHostLLVM(product.Product):
             '-B', self.build_dir,
             '-C', cache_file,
             '-DLLVM_TABLEGEN=' + llvm_tblgen,
+            '-DCLANG_TABLEGEN=' + clang_tblgen,
             '-DCMAKE_BUILD_TYPE=' + self.args.llvm_build_variant,
         ]
 
         # Reconfigure when asked, or when either the cache or the generator
         # output is missing (a half-finished configure leaves CMakeCache.txt
         # without build.ninja and would otherwise wedge every later build).
+        # NOTE: this mirrors the repo-standard cmake_product.py guard and checks
+        # only existence, not mtime. EmscriptenHostLLVM.cmake is a CMake `-C`
+        # initial cache whose `set(... CACHE ...)` is no-FORCE, so editing it does
+        # NOT take effect on an existing build dir even with --reconfigure; remove
+        # the build dir (fresh configure) after changing the cache file.
         cmake_cache = os.path.join(self.build_dir, 'CMakeCache.txt')
         build_ninja = os.path.join(self.build_dir, 'build.ninja')
         if self.args.reconfigure or not os.path.isfile(cmake_cache) \
@@ -102,13 +114,15 @@ class EmscriptenHostLLVM(product.Product):
         if self.args.skip_build:
             return
 
-        # Tier-1 exit-gate libraries (the headline de-risk). The WebAssembly
-        # target is enabled by the cache file, so Core/MC/Object/WebAssembly
-        # libs can be appended here as an optional follow-on.
+        # Build the wasm-host toolchain. The WebAssembly target and the
+        # clang;lld projects are enabled by the cache file.
         build_args = ['-j', str(self.args.build_jobs)]
         if self.args.verbose_build:
             build_args.append('-v')
-        build_targets = ['LLVMDemangle', 'LLVMSupport', 'LLVMTargetParser']
+        # One multicall executable packing clang + wasm-ld (+ utils), argv[0]-dispatched.
+        # Building llvm-driver transitively builds the clang/lld object libs and the
+        # LLVM libs the Phase-1 milestone built standalone.
+        build_targets = ['llvm-driver']
         shell.call([self.toolchain.cmake, '--build', self.build_dir, '--']
                    + build_args + build_targets)
 
@@ -143,6 +157,11 @@ class EmscriptenHostLLVM(product.Product):
         llvm_bin = os.path.join(self._host_llvm_build_dir(host_target), 'bin')
         native = self.args.native_llvm_tools_path or llvm_bin
         return os.path.join(native, 'llvm-tblgen')
+
+    def _native_clang_tblgen(self, host_target):
+        llvm_bin = os.path.join(self._host_llvm_build_dir(host_target), 'bin')
+        native = self.args.native_clang_tools_path or llvm_bin
+        return os.path.join(native, 'clang-tblgen')
 
     def _host_llvm_build_dir(self, host_target):
         # Same target dir as emscriptenstdlib.py / wasistdlib.py's helper, minus

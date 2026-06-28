@@ -25,7 +25,13 @@
 struct SwiftObjectHeader : BridgedSwiftObject {
   SwiftObjectHeader(SwiftMetatype metatype) {
     this->metatype = metatype;
+    // All-ones is the "immortal" refcount sentinel; match the field width (see
+    // BridgedSwiftObject: 32-bit inline refcount on 32-bit targets).
+#if __SIZEOF_POINTER__ == 4
+    this->refCounts = ~(uint32_t)0;
+#else
     this->refCounts = ~(uint64_t)0;
+#endif
   }
 
   bool isBridged() const { return metatype != nullptr; }

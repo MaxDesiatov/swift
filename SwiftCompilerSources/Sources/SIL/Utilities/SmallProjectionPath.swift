@@ -960,9 +960,19 @@ let smallProjectionPathTest = Test("small_projection_path") {
     let (k2, _, s2) = p2.pop()
     assert(k2 == .anything && s2.isEmpty)
 
+    // `SmallProjectionPath` always stores into a 64-bit `bytes` word, but the `index:`
+    // parameter is `Int`, which is 32-bit on a 32-bit host (e.g. wasm32). Pick a
+    // width-appropriate large index so the round-trip still exercises multi-byte
+    // index-overflow encoding without the literal overflowing `Int`.
+#if _pointerBitWidth(_64)
     let p3 = SmallProjectionPath(.indexedElement, index: 0xfffffffffffff)
     let (k3, i3, s3) = p3.pop()
     assert(k3 == .indexedElement && i3 == 0xfffffffffffff && s3.isEmpty)
+#else
+    let p3 = SmallProjectionPath(.indexedElement, index: 0xfffffff)
+    let (k3, i3, s3) = p3.pop()
+    assert(k3 == .indexedElement && i3 == 0xfffffff && s3.isEmpty)
+#endif
 
     let p4 = p3.push(.indexedElement, index: Int.max)
     let (k4, _, s4) = p4.pop()
