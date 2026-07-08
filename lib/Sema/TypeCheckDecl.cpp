@@ -2578,21 +2578,25 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
             infoBuilder.withLifetimeDependencies(*lifetimeDependenceInfo);
       }
 
-      // Resolve performed effects and add to ExtInfo.
-      if (AFD->hasEffects()) {
+      // Resolve performed effects and add to ExtInfo. A deserialized row is
+      // stored as a TypeLoc with a resolved type and no TypeRepr.
+      if (!AFD->getDeclaredEffects().empty()) {
         SmallVector<Type, 2> effectTypes;
         bool sawNever = false;
         auto options = TypeResolutionOptions(TypeResolverContext::None);
         for (auto &typeLoc : AFD->getDeclaredEffects()) {
-          auto *typeRepr = typeLoc.getTypeRepr();
-          if (!typeRepr) continue;
-          auto resolvedType =
-              TypeResolution::forInterface(AFD, options,
-                                           /*unboundTyOpener*/ nullptr,
-                                           /*placeholderOpener*/ nullptr,
-                                           /*packElementOpener*/ nullptr)
-                  .resolveType(typeRepr);
-          if (resolvedType->hasError()) continue;
+          Type resolvedType;
+          if (auto *typeRepr = typeLoc.getTypeRepr()) {
+            resolvedType =
+                TypeResolution::forInterface(AFD, options,
+                                             /*unboundTyOpener*/ nullptr,
+                                             /*placeholderOpener*/ nullptr,
+                                             /*packElementOpener*/ nullptr)
+                    .resolveType(typeRepr);
+          } else {
+            resolvedType = typeLoc.getType();
+          }
+          if (!resolvedType || resolvedType->hasError()) continue;
           if (resolvedType->isNever()) {
             sawNever = true;
             continue;

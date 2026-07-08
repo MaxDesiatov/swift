@@ -2796,6 +2796,13 @@ static CanSILFunctionType getSILFunctionType(
         }
       }
 
+      // The built-in Locking effect has no handler; it lowers to a SIL
+      // performance constraint instead. Keep it out of handler synthesis.
+      if (auto *lockingProto =
+              TC.Context.getProtocol(KnownProtocolKind::Locking)) {
+        llvm::erase(protocols, lockingProto);
+      }
+
       if (!protocols.empty()) {
         // Sort alphabetically for deterministic ordering.
         llvm::sort(protocols, [](ProtocolDecl *a, ProtocolDecl *b) {

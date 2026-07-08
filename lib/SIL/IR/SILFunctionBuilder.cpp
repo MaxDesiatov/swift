@@ -49,6 +49,31 @@ SILFunction *SILFunctionBuilder::getOrCreateFunction(
   return fn;
 }
 
+// A restrictive context-effect row enforces the same runtime guarantees as the
+// @_noLocks / @_noAllocation attributes: effects(Never) permits nothing,
+// effects(Locking) permits locking but not allocation. Any broader or absent
+// row is unconstrained.
+static PerformanceConstraints
+perfConstraintsForDeclaredEffects(AbstractFunctionDecl *afd, ASTContext &ctx) {
+  Type effects = afd->getResolvedDeclaredEffectsType();
+  if (!effects)
+    return PerformanceConstraints::None;
+
+  if (effects->isNever())
+    return PerformanceConstraints::NoLocks;
+
+  if (auto *lockingProto = ctx.getProtocol(KnownProtocolKind::Locking)) {
+    Type constraint = effects;
+    if (auto *et = constraint->getAs<ExistentialType>())
+      constraint = et->getConstraintType();
+    if (auto *pt = constraint->getAs<ProtocolType>())
+      if (pt->getDecl() == lockingProto)
+        return PerformanceConstraints::NoAllocation;
+  }
+
+  return PerformanceConstraints::None;
+}
+
 void SILFunctionBuilder::addFunctionAttributes(
     SILFunction *F, DeclAttributes &Attrs, SILModule &M,
     llvm::function_ref<SILFunction *(SILLocation loc, SILDeclRef constant)>
@@ -218,6 +243,18 @@ void SILFunctionBuilder::addFunctionAttributes(
              constant && constant.hasDecl() && !constant.isImplicit() &&
              !Attrs.hasAttribute<NoManualOwnershipAttr>()) {
     F->setPerfConstraints(PerformanceConstraints::ManualOwnership);
+  }
+
+  // Lower a restrictive context-effect row to the same constraint an explicit
+  // @_noLocks / @_noAllocation attribute would set. Do not override an explicit
+  // attribute.
+  if (F->getPerfConstraints() == PerformanceConstraints::None && constant &&
+      constant.hasDecl()) {
+    if (auto *afd = dyn_cast<AbstractFunctionDecl>(constant.getDecl())) {
+      auto pc = perfConstraintsForDeclaredEffects(afd, M.getASTContext());
+      if (pc != PerformanceConstraints::None)
+        F->setPerfConstraints(pc);
+    }
   }
 
   if (Attrs.hasAttribute<LexicalLifetimesAttr>()) {

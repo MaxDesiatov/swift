@@ -5031,6 +5031,7 @@ public:
                            fn->hasAsync(),
                            fn->hasThrows(),
                            S.addTypeRef(fn->getThrownInterfaceType()),
+                           S.addTypeRef(fn->getResolvedDeclaredEffectsType()),
                            S.addGenericSignatureRef(
                                                   fn->getGenericSignature()),
                            S.addTypeRef(fn->getResultInterfaceType()),
@@ -5171,6 +5172,7 @@ public:
                                fn->hasAsync(),
                                fn->hasThrows(),
                                S.addTypeRef(fn->getThrownInterfaceType()),
+                               S.addTypeRef(fn->getResolvedDeclaredEffectsType()),
                                S.addGenericSignatureRef(
                                                   fn->getGenericSignature()),
                                S.addTypeRef(fn->getResultInterfaceType()),
@@ -5341,6 +5343,7 @@ public:
                                   ctor->hasAsync(),
                                   ctor->hasThrows(),
                                   S.addTypeRef(ctor->getThrownInterfaceType()),
+                                  S.addTypeRef(ctor->getResolvedDeclaredEffectsType()),
                                   getStableCtorInitializerKind(
                                     ctor->getInitKind()),
                                   S.addGenericSignatureRef(
@@ -6176,6 +6179,7 @@ public:
         fnTy->isAsync(),
         fnTy->isThrowing(),
         S.addTypeRef(fnTy->getThrownError()),
+        S.addTypeRef(fnTy->getDeclaredEffects()),
         getRawStableDifferentiabilityKind(fnTy->getDifferentiabilityKind()),
         isolation,
         fnTy->hasSendingResult());
@@ -6199,6 +6203,7 @@ public:
         getRawStableFunctionTypeRepresentation(fnTy->getRepresentation()),
         fnTy->isSendable(), fnTy->isAsync(), fnTy->isThrowing(),
         S.addTypeRef(fnTy->getThrownError()),
+        S.addTypeRef(fnTy->getDeclaredEffects()),
         getRawStableDifferentiabilityKind(fnTy->getDifferentiabilityKind()),
         isolation, fnTy->hasSendingResult(),
         S.addGenericSignatureRef(genericSig));

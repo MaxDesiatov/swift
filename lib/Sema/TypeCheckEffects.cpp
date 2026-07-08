@@ -5064,19 +5064,19 @@ extractEffectProtocolsImpl(Type declaredEffects) {
 /// Returns a non-empty vector of the declared effect protocols otherwise.
 static std::optional<SmallVector<ProtocolDecl *, 4>>
 resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
-  if (!fn->hasEffects())
+  if (!fn->hasEffects()) {
+    // A deserialized declaration has no parse-time TypeLocs, but its interface
+    // type carries the already-validated row. Decompose that directly.
+    if (Type effects = fn->getResolvedDeclaredEffectsType())
+      return extractEffectProtocolsImpl(effects);
     return std::nullopt;
+  }
 
   auto declaredEffects = fn->getDeclaredEffects();
   SmallVector<ProtocolDecl *, 4> result;
   bool sawNever = false;
 
   auto *effectProto = ctx.getProtocol(KnownProtocolKind::Effect);
-  if (!effectProto) {
-    ctx.Diags.diagnose(fn->getEffectsLoc(),
-                       diag::context_effect_missing_effect_protocol);
-    return std::nullopt;
-  }
 
   for (auto &typeLoc : declaredEffects) {
     auto *typeRepr = typeLoc.getTypeRepr();
@@ -5120,6 +5120,14 @@ resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
         ctx.Diags.diagnose(typeRepr->getLoc(),
                            diag::context_effect_type_not_effect_protocol,
                            memberTy);
+        continue;
+      }
+
+      // A non-Never effect names a protocol; the Effect protocol must be
+      // available to validate it. Never needs no such validation.
+      if (!effectProto) {
+        ctx.Diags.diagnose(fn->getEffectsLoc(),
+                           diag::context_effect_missing_effect_protocol);
         continue;
       }
 
@@ -5448,14 +5456,22 @@ public:
     }
 
     auto *calleeDecl = fnRef.getFunction();
-    if (!calleeDecl->hasEffects()) {
+
+    // If caller has no performs clause and no narrowing scopes, it's
+    // unrestricted -- allow everything.
+    if (!CallerEffects && NarrowingScope.empty())
+      return ShouldRecurse;
+
+    // Resolve the callee's row from either its parse-time clause or, for a
+    // deserialized declaration, its interface type.
+    const auto &calleeEffects = getOrResolveEffects(calleeDecl);
+    if (!calleeEffects) {
       // In a restricted context, calling an unannotated function is an error
       // because we can't verify its effects are safe. Functions marked
       // @_semantics("effects_never") are exempt (known pure).
       // Builtin functions are exempt (compiler intrinsics, inherently pure).
       // @_transparent functions are exempt (thin wrappers inlined early).
-      if ((CallerEffects || !NarrowingScope.empty()) &&
-          !calleeDecl->getAttrs().hasSemanticsAttr("effects_never") &&
+      if (!calleeDecl->getAttrs().hasSemanticsAttr("effects_never") &&
           !calleeDecl->getModuleContext()->isBuiltinModule() &&
           !calleeDecl->isTransparent()) {
         Ctx.Diags.diagnose(E->getLoc(),
@@ -5464,15 +5480,6 @@ public:
       }
       return ShouldRecurse;
     }
-
-    const auto &calleeEffects = getOrResolveEffects(calleeDecl);
-    if (!calleeEffects)
-      return ShouldRecurse;
-
-    // If caller has no performs clause and no narrowing scopes, it's
-    // unrestricted -- allow everything.
-    if (!CallerEffects && NarrowingScope.empty())
-      return ShouldRecurse;
 
     // Compute set difference: callee effects not available.
     SmallVector<ProtocolDecl *, 4> missing;

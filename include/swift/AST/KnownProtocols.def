@@ -120,6 +120,7 @@ PROTOCOL(SendableMetatype)
 PROTOCOL(UnsafeSendable)
 
 PROTOCOL(Effect)
+PROTOCOL(Locking)
 
 PROTOCOL_(ObjectiveCBridgeable)
 PROTOCOL_(DestructorSafeContainer)

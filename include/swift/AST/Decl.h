@@ -8149,6 +8149,11 @@ public:
   /// Retrieve the list of declared effect types.
   ArrayRef<TypeLoc> getDeclaredEffects() const { return DeclaredEffects; }
 
+  /// The resolved declared-effects row from the interface type, or null if the
+  /// function has none. Unlike getDeclaredEffects (parse-time TypeLocs), this is
+  /// available for deserialized declarations.
+  Type getResolvedDeclaredEffectsType() const;
+
   /// Set the performs clause information.
   void setEffects(SourceLoc loc, ArrayRef<TypeLoc> effects) {
     EffectsLoc = loc;

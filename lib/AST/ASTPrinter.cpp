@@ -4603,6 +4603,16 @@ void PrintAST::printFunctionParameters(AbstractFunctionDecl *AFD) {
       }
     }
   }
+
+  // A restricted context-effect row is neither async nor throws, so print it
+  // in its own block. Read the resolved row so it works for deserialized decls.
+  if (Type effects = AFD->getResolvedDeclaredEffectsType()) {
+    Printer << " ";
+    Printer.printKeyword("effects", Options);
+    Printer << "(";
+    effects->print(Printer, Options);
+    Printer << ")";
+  }
 }
 
 bool PrintAST::printASTNodes(const ArrayRef<ASTNode> &Elements,

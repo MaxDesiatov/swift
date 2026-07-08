@@ -593,11 +593,20 @@ checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
     return RequirementMatch(getStandinForAccessor(witness, AccessorKind::Get),
                             MatchKind::ThrowsConflict);
 
-  // Check performs on accessor declarations.
+  // Check performs on accessor declarations. Read the row from the getter's
+  // function type once and reuse it for both the presence guard and the subset
+  // check, so a deserialized getter (no source TypeLocs) is handled and the
+  // interface type is walked once.
   if (auto *reqGetter = req->getEffectfulGetAccessor()) {
-    if (reqGetter->hasEffects()) {
+    auto reqFnTy =
+        reqGetter->getMethodInterfaceType()->getAs<AnyFunctionType>();
+    if (reqFnTy && reqFnTy->hasDeclaredEffects()) {
       auto *witnessGetter = witness->getEffectfulGetAccessor();
-      if (!witnessGetter || !witnessGetter->hasEffects()) {
+      auto witnessFnTy =
+          witnessGetter
+              ? witnessGetter->getMethodInterfaceType()->getAs<AnyFunctionType>()
+              : nullptr;
+      if (!witnessFnTy || !witnessFnTy->hasDeclaredEffects()) {
         // Witness has no performs clause but requirement does.
         if (witnessGetter &&
             witnessGetter->getModuleContext()->isBuiltinModule())
@@ -608,25 +617,19 @@ checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
               MatchKind::EffectsConflict);
       } else {
         // Both have performs -- subset check.
-        auto reqFnTy = reqGetter->getMethodInterfaceType()
-                           ->getAs<AnyFunctionType>();
-        auto witnessFnTy = witnessGetter->getMethodInterfaceType()
-                               ->getAs<AnyFunctionType>();
-        if (reqFnTy && witnessFnTy) {
-          auto reqProtocols =
-              extractEffectProtocols(reqFnTy->getDeclaredEffects());
-          auto witnessProtocols =
-              extractEffectProtocols(witnessFnTy->getDeclaredEffects());
-          for (auto *wp : witnessProtocols) {
-            bool contained =
-                llvm::any_of(reqProtocols, [&](ProtocolDecl *rp) {
-                  return wp == rp || wp->inheritsFrom(rp);
-                });
-            if (!contained)
-              return RequirementMatch(
-                  getStandinForAccessor(witness, AccessorKind::Get),
-                  MatchKind::EffectsConflict);
-          }
+        auto reqProtocols =
+            extractEffectProtocols(reqFnTy->getDeclaredEffects());
+        auto witnessProtocols =
+            extractEffectProtocols(witnessFnTy->getDeclaredEffects());
+        for (auto *wp : witnessProtocols) {
+          bool contained =
+              llvm::any_of(reqProtocols, [&](ProtocolDecl *rp) {
+                return wp == rp || wp->inheritsFrom(rp);
+              });
+          if (!contained)
+            return RequirementMatch(
+                getStandinForAccessor(witness, AccessorKind::Get),
+                MatchKind::EffectsConflict);
         }
       }
     }
@@ -1029,9 +1032,19 @@ RequirementMatch swift::matchWitness(
 
   // Check performed effects: if requirement has performs, witness must too.
   if (auto *reqFunc = dyn_cast<AbstractFunctionDecl>(req)) {
-    if (reqFunc->hasEffects()) {
+    auto getMethodFnType = [](AbstractFunctionDecl *decl)
+        -> const AnyFunctionType * {
+      Type ty = decl->getDeclContext()->isTypeContext()
+                  ? decl->getMethodInterfaceType()
+                  : decl->getInterfaceType();
+      return ty->getAs<AnyFunctionType>();
+    };
+
+    auto *reqFn = getMethodFnType(reqFunc);
+    if (reqFn && reqFn->hasDeclaredEffects()) {
       auto *witnessFunc = dyn_cast<AbstractFunctionDecl>(witness);
-      if (!witnessFunc || !witnessFunc->hasEffects()) {
+      auto *witnessFn = witnessFunc ? getMethodFnType(witnessFunc) : nullptr;
+      if (!witnessFn || !witnessFn->hasDeclaredEffects()) {
         // Builtin module functions are exempt (compiler intrinsics).
         if (witnessFunc && witnessFunc->getModuleContext()->isBuiltinModule())
           ; // OK
@@ -1041,23 +1054,10 @@ RequirementMatch swift::matchWitness(
         // Both have performs -- check that the witness's effect set is a
         // subset of the requirement's. Each protocol in the witness's set
         // must equal or inherit from at least one requirement protocol.
-        auto getMethodFnType = [](AbstractFunctionDecl *decl)
-            -> const AnyFunctionType * {
-          Type ty = decl->getDeclContext()->isTypeContext()
-                      ? decl->getMethodInterfaceType()
-                      : decl->getInterfaceType();
-          return ty->getAs<AnyFunctionType>();
-        };
-
-        auto reqFn = getMethodFnType(reqFunc);
-        auto witnessFn = getMethodFnType(witnessFunc);
-        assert(reqFn && witnessFn &&
-               "AbstractFunctionDecl should have function interface type");
-        auto reqPerformed = reqFn->getDeclaredEffects();
-        auto witnessPerformed = witnessFn->getDeclaredEffects();
-
-        auto reqProtocols = extractEffectProtocols(reqPerformed);
-        auto witnessProtocols = extractEffectProtocols(witnessPerformed);
+        auto reqProtocols =
+            extractEffectProtocols(reqFn->getDeclaredEffects());
+        auto witnessProtocols =
+            extractEffectProtocols(witnessFn->getDeclaredEffects());
 
         for (auto *wp : witnessProtocols) {
           bool contained = llvm::any_of(reqProtocols, [&](ProtocolDecl *rp) {

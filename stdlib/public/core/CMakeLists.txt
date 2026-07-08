@@ -114,6 +114,7 @@ split_embedded_sources(
   EMBEDDED LazySequence.swift
     NORMAL LegacyABI.swift
   EMBEDDED LifetimeManager.swift
+  EMBEDDED Locking.swift
     NORMAL Macros.swift
   EMBEDDED ManagedBuffer.swift
   EMBEDDED Map.swift

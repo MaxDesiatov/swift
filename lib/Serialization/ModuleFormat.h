@@ -59,7 +59,7 @@ const uint16_t SWIFTMODULE_VERSION_MAJOR = 0;
 /// it just ensures a conflict if two people change the module format.
 /// Don't worry about adhering to the 80-column limit for this line.
 const uint16_t SWIFTMODULE_VERSION_MINOR =
-    1010; // metatype extension flag
+    1011; // declared effects on function types and decls
 
 /// A standard hash seed used for all string hashes in a serialized module.
 ///
@@ -1410,6 +1410,7 @@ namespace decls_block {
     BCFixed<1>,                      // async?
     BCFixed<1>,                      // throws?
     TypeIDField,                     // thrown error
+    TypeIDField,                     // declared effects
     DifferentiabilityKindField,      // differentiability kind
     FunctionTypeIsolationField,      // isolation
     BCFixed<1>                       // has sending result
@@ -1511,6 +1512,7 @@ namespace decls_block {
     BCFixed<1>,                      // async?
     BCFixed<1>,                      // throws?
     TypeIDField,                     // thrown error
+    TypeIDField,                     // declared effects
     DifferentiabilityKindField,      // differentiability kind
     FunctionTypeIsolationField,      // isolation
     BCFixed<1>,                      // has sending result
@@ -1757,6 +1759,7 @@ namespace decls_block {
     BCFixed<1>,  // async?
     BCFixed<1>,  // throws?
     TypeIDField,  // thrown error
+    TypeIDField,  // declared effects
     CtorInitializerKindField,  // initializer kind
     GenericSignatureIDField, // generic environment
     DeclIDField, // overridden decl
@@ -1836,6 +1839,7 @@ namespace decls_block {
     BCFixed<1>,   // async?
     BCFixed<1>,   // throws?
     TypeIDField,  // thrown error
+    TypeIDField,  // declared effects
     GenericSignatureIDField, // generic environment
     TypeIDField,  // result interface type
     BCFixed<1>,   // IUO result?
@@ -1906,6 +1910,7 @@ namespace decls_block {
     BCFixed<1>,   // async?
     BCFixed<1>,   // throws?
     TypeIDField,  // thrown error
+    TypeIDField,  // declared effects
     GenericSignatureIDField, // generic environment
     TypeIDField,  // result interface type
     BCFixed<1>,   // IUO result?

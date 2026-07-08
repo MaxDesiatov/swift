@@ -3609,6 +3609,23 @@ public:
   /// their offsets added to \c customAttrOffsets.
   llvm::Error deserializeDeclCommon();
 
+  /// Applies a deserialized declared-effects row to \p fn. The row was
+  /// validated in its defining module; store it without a source location so
+  /// the interface type reconstructs it.
+  llvm::Error applyDeclaredEffects(AbstractFunctionDecl *fn,
+                                   TypeID declaredEffectsID) {
+    if (!declaredEffectsID)
+      return llvm::Error::success();
+    auto effectsOrError = MF.getTypeChecked(declaredEffectsID);
+    if (!effectsOrError)
+      return effectsOrError.takeError();
+    if (Type effects = effectsOrError.get()) {
+      TypeLoc loc = TypeLoc::withoutLoc(effects);
+      fn->setEffects(SourceLoc(), ctx.AllocateCopy(llvm::ArrayRef<TypeLoc>(loc)));
+    }
+    return llvm::Error::success();
+  }
+
   /// Deserializes the custom attributes from \c MF.DeclTypesCursor, using the
   /// offsets in \c customAttrOffsets.
   llvm::Error deserializeCustomAttrs();
@@ -3896,6 +3913,7 @@ public:
     bool isIUO, isFailable;
     bool isImplicit, isObjC, hasStubImplementation, throws, async;
     TypeID thrownTypeID;
+    TypeID declaredEffectsID;
     GenericSignatureID genericSigID;
     uint8_t storedInitKind, rawAccessLevel;
     DeclID overriddenID;
@@ -3907,6 +3925,7 @@ public:
                                                isFailable, isIUO, isImplicit,
                                                isObjC, hasStubImplementation,
                                                async, throws, thrownTypeID,
+                                               declaredEffectsID,
                                                storedInitKind,
                                                genericSigID,
                                                overriddenID,
@@ -3995,6 +4014,9 @@ public:
     declOrOffset = ctor;
 
     ctor->setGenericSignature(MF.getGenericSignature(genericSigID));
+
+    if (auto err = applyDeclaredEffects(ctor, declaredEffectsID))
+      return std::move(err);
 
     if (auto accessLevel = getActualAccessLevel(rawAccessLevel))
       ctor->setAccess(*accessLevel);
@@ -4397,6 +4419,7 @@ public:
     uint8_t rawAccessorKind;
     bool isObjC, hasForcedStaticDispatch, async, throws;
     TypeID thrownTypeID;
+    TypeID declaredEffectsID;
     unsigned numNameComponentsBiased;
     GenericSignatureID genericSigID;
     TypeID resultInterfaceTypeID;
@@ -4417,6 +4440,7 @@ public:
                                           rawMutModifier,
                                           hasForcedStaticDispatch,
                                           async, throws, thrownTypeID,
+                                          declaredEffectsID,
                                           genericSigID,
                                           resultInterfaceTypeID,
                                           isIUO,
@@ -4436,6 +4460,7 @@ public:
                                               rawMutModifier,
                                               hasForcedStaticDispatch,
                                               async, throws, thrownTypeID,
+                                              declaredEffectsID,
                                               genericSigID,
                                               resultInterfaceTypeID,
                                               isIUO,
@@ -4574,6 +4599,9 @@ public:
       fn = accessor;
     }
     declOrOffset = fn;
+
+    if (auto err = applyDeclaredEffects(fn, declaredEffectsID))
+      return std::move(err);
 
     fn->setGenericSignature(MF.getGenericSignature(genericSigID));
 
@@ -7437,6 +7465,7 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
   uint8_t rawRepresentation, rawDiffKind;
   bool noescape = false, sendable, async, throws, hasSendingResult;
   TypeID thrownErrorID;
+  TypeID declaredEffectsID;
   GenericSignature genericSig;
   TypeID clangTypeID;
   TypeID rawIsolation;
@@ -7444,14 +7473,14 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
   if (!isGeneric) {
     decls_block::FunctionTypeLayout::readRecord(
         scratch, resultID, rawRepresentation, clangTypeID, noescape, sendable,
-        async, throws, thrownErrorID, rawDiffKind, rawIsolation,
-        hasSendingResult);
+        async, throws, thrownErrorID, declaredEffectsID, rawDiffKind,
+        rawIsolation, hasSendingResult);
   } else {
     GenericSignatureID rawGenericSig;
     decls_block::GenericFunctionTypeLayout::readRecord(
         scratch, resultID, rawRepresentation, sendable, async, throws,
-        thrownErrorID, rawDiffKind, rawIsolation, hasSendingResult,
-        rawGenericSig);
+        thrownErrorID, declaredEffectsID, rawDiffKind, rawIsolation,
+        hasSendingResult, rawGenericSig);
     genericSig = MF.getGenericSignature(rawGenericSig);
     clangTypeID = 0;
   }
@@ -7467,6 +7496,15 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
       return thrownErrorTy.takeError();
 
     thrownError = thrownErrorTy.get();
+  }
+
+  Type declaredEffects;
+  if (declaredEffectsID) {
+    auto declaredEffectsTy = MF.getTypeChecked(declaredEffectsID);
+    if (!declaredEffectsTy)
+      return declaredEffectsTy.takeError();
+
+    declaredEffects = declaredEffectsTy.get();
   }
 
   auto diffKind = getActualDifferentiabilityKind(rawDiffKind);
@@ -7506,6 +7544,7 @@ detail::function_deserializer::deserialize(ModuleFile &MF,
                   /*LifetimeDependenceInfo */ {}, hasSendingResult)
                   .withSendable(sendable)
                   .withAsync(async)
+                  .withDeclaredEffects(declaredEffects)
                   .build();
 
   auto resultTy = MF.getTypeChecked(resultID);

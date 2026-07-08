@@ -1325,6 +1325,16 @@ Type AbstractFunctionDecl::getThrownInterfaceType() const {
   return CatchNode(mutableThis).getExplicitCaughtType(getASTContext());
 }
 
+Type AbstractFunctionDecl::getResolvedDeclaredEffectsType() const {
+  Type ty = getInterfaceType();
+  while (auto *fnTy = ty->getAs<AnyFunctionType>()) {
+    if (fnTy->hasDeclaredEffects())
+      return fnTy->getDeclaredEffects();
+    ty = fnTy->getResult();
+  }
+  return Type();
+}
+
 std::optional<Type> AbstractFunctionDecl::getCachedThrownInterfaceType() const {
   if (!getThrownTypeRepr())
     return ThrownType.getType();

@@ -239,6 +239,7 @@
   "Misc": [
     "AtomicInt.swift",
     "Effect.swift",
+    "Locking.swift",
     "Sendable.swift",
     "ErrorType.swift",
     "Identifiable.swift",

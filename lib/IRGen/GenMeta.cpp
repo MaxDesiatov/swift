@@ -7680,6 +7680,7 @@ SpecialProtocol irgen::getSpecialProtocolID(ProtocolDecl *P) {
   case KnownProtocolKind::Sendable:
   case KnownProtocolKind::UnsafeSendable:
   case KnownProtocolKind::Effect:
+  case KnownProtocolKind::Locking:
   case KnownProtocolKind::RangeReplaceableCollection:
   case KnownProtocolKind::GlobalActor:
   case KnownProtocolKind::Copyable:
