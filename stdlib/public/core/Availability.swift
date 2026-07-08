@@ -40,26 +40,22 @@ import SwiftShims
 #if os(iOS) && !os(visionOS)
 @_effects(readnone)
 @_transparent
-@_noLocks
 public func _stdlib_isOSVersionAtLeast(
   _ major: Builtin.Word,
   _ minor: Builtin.Word,
   _ patch: Builtin.Word
-) -> Builtin.Int1 {
+) effects(Never) -> Builtin.Int1 {
   return _stdlib_isOSVersionAtLeast_AEIC(major, minor, patch)
 }
 #else
 @_semantics("availability.osversion")
 @_effects(readnone)
 @_unavailableInEmbedded
-#if hasFeature(Macros)
-@_noLocks
-#endif
 public func _stdlib_isOSVersionAtLeast(
   _ major: Builtin.Word,
   _ minor: Builtin.Word,
   _ patch: Builtin.Word
-) -> Builtin.Int1 {
+) effects(Never) -> Builtin.Int1 {
   return _stdlib_isOSVersionAtLeast_AEIC(major, minor, patch)
 }
 #endif
@@ -74,7 +70,7 @@ public func _stdlib_isOSVersionAtLeast_AEIC(
   _ major: Builtin.Word,
   _ minor: Builtin.Word,
   _ patch: Builtin.Word
-) -> Builtin.Int1 {
+) effects(Never) -> Builtin.Int1 {
 #if (os(anyAppleOS) || os(Android)) && SWIFT_RUNTIME_OS_VERSIONING
   if Int(major) == 9999 {
     return true._value
@@ -114,14 +110,11 @@ public func _stdlib_isOSVersionAtLeast_AEIC(
 @_semantics("availability.osversion")
 @_effects(readnone)
 @available(macOS 10.15, iOS 13.0, *)
-#if hasFeature(Macros)
-@_noLocks
-#endif
 public func _stdlib_isVariantOSVersionAtLeast(
   _ major: Builtin.Word,
   _ minor: Builtin.Word,
   _ patch: Builtin.Word
-  ) -> Builtin.Int1 {
+  ) effects(Never) -> Builtin.Int1 {
   if Int(major) == 9999 {
     return true._value
   }
@@ -159,9 +152,6 @@ public func _stdlib_isVariantOSVersionAtLeast(
 @_semantics("availability.osversion")
 @_effects(readnone)
 @_unavailableInEmbedded
-#if hasFeature(Macros)
-@_noLocks
-#endif
 public func _stdlib_isOSVersionAtLeastOrVariantVersionAtLeast(
   _ major: Builtin.Word,
   _ minor: Builtin.Word,
@@ -169,7 +159,7 @@ public func _stdlib_isOSVersionAtLeastOrVariantVersionAtLeast(
   _ variantMajor: Builtin.Word,
   _ variantMinor: Builtin.Word,
   _ variantPatch: Builtin.Word
-  ) -> Builtin.Int1 {
+  ) effects(Never) -> Builtin.Int1 {
   if Int(major) == 9999 {
     return true._value
   }
@@ -265,20 +255,11 @@ extension _SwiftStdlibVersion {
 
   private static var _current: Self { .v6_5_0 }
 
-#if hasFeature(Macros)
-  @available(SwiftStdlib 5.7, *)
-  public static var current: Self {
-    @_noLocks
-    @_effects(readnone)
-    get { ._current }
-  }
-#else
   @available(SwiftStdlib 5.7, *)
   public static var current: Self {
     @_effects(readnone)
-    get { ._current }
+    get effects(Never) { ._current }
   }
-#endif
 
   @export(implementation)
   internal init(

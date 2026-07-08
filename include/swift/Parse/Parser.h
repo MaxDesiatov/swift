@@ -1306,6 +1306,9 @@ public:
                                        SourceLoc &asyncLoc,
                                        SourceLoc &throwsLoc,
                                        TypeRepr *&thrownTy,
+                                       SourceLoc &effectsLoc,
+                                       SmallVectorImpl<TypeRepr *>
+                                           &declaredEffects,
                                        bool &hasEffectfulGet,
                                        AccessorKind currentKind,
                                        SourceLoc const& currentLoc);

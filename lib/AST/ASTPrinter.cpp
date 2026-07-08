@@ -4697,6 +4697,16 @@ void PrintAST::visitAccessorDecl(AccessorDecl *decl) {
     printThrownErrorIfNecessary(decl);
   }
 
+  // A restricted context-effect row is neither async nor throws; print it in
+  // its own block, mirroring the free-function path.
+  if (Type effects = decl->getResolvedDeclaredEffectsType()) {
+    Printer << " ";
+    Printer.printKeyword("effects", Options);
+    Printer << "(";
+    effects->print(Printer, Options);
+    Printer << ")";
+  }
+
   printBodyIfNecessary(decl);
 }
 

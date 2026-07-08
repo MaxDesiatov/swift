@@ -15,3 +15,11 @@ public func f() effects(Never) {}
 
 // CHECK: public func g() effects(Swift::Locking)
 public func g() effects(Locking) {}
+
+// An accessor's effects(...) clause must round-trip through the interface too,
+// not just free functions.
+public struct S {
+  // CHECK: public var v: Swift::Int {
+  // CHECK: get effects(Swift::Never)
+  public var v: Int { get effects(Never) { 0 } }
+}

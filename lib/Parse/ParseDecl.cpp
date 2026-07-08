@@ -8362,17 +8362,27 @@ ParserStatus Parser::parseGetEffectSpecifier(ParsedAccessors &accessors,
                                              SourceLoc &asyncLoc,
                                              SourceLoc &throwsLoc,
                                              TypeRepr *&thrownTy,
+                                             SourceLoc &effectsLoc,
+                                             SmallVectorImpl<TypeRepr *>
+                                                 &declaredEffects,
                                              bool &hasEffectfulGet,
                                              AccessorKind currentKind,
                                              SourceLoc const& currentLoc) {
   ParserStatus Status;
 
-  if (isEffectsSpecifier(Tok)) {
+  // The context-effects `effects(...)` clause is a contextual keyword that
+  // isEffectsSpecifier() does not cover.
+  auto isContextEffects = [&]() {
+    return Context.LangOpts.hasFeature(Feature::ContextEffects) &&
+           Tok.isContextualKeyword("effects");
+  };
+
+  if (isEffectsSpecifier(Tok) || isContextEffects()) {
     if (currentKind == AccessorKind::Get) {
       Status |=
           parseEffectsSpecifiers(/*existingArrowLoc*/ SourceLoc(), asyncLoc,
               /*reasync*/ nullptr, throwsLoc,
-              /*rethrows*/ nullptr, thrownTy);
+              /*rethrows*/ nullptr, thrownTy, &effectsLoc, &declaredEffects);
 
       // If we've previously parsed a non-'get' accessor, raise diagnostics,
       // because we're about to add an effectful 'get' accessor.
@@ -8390,8 +8400,14 @@ ParserStatus Parser::parseGetEffectSpecifier(ParsedAccessors &accessors,
       do {
         diagnose(Tok, diag::invalid_accessor_specifier,
                  accessorKindName(currentKind), Tok.getRawText());
+        // The context-effects clause carries a parenthesized type list;
+        // consume it too so the trailing '(...)' does not cascade into a
+        // spurious "expected '{'".
+        bool wasContextEffects = isContextEffects();
         consumeToken();
-      } while (isEffectsSpecifier(Tok));
+        if (wasContextEffects && Tok.is(tok::l_paren))
+          Status |= skipSingle();
+      } while (isEffectsSpecifier(Tok) || isContextEffects());
     }
   }
 
@@ -8416,8 +8432,11 @@ bool Parser::parseAccessorAfterIntroducer(
   // on 'get' accessors, we also emit diagnostics if they show up on others.
   SourceLoc asyncLoc;
   SourceLoc throwsLoc;
+  SourceLoc effectsLoc;
   TypeRepr *thrownTy = nullptr;
+  SmallVector<TypeRepr *, 2> declaredEffects;
   Status |= parseGetEffectSpecifier(accessors, asyncLoc, throwsLoc, thrownTy,
+                                    effectsLoc, declaredEffects,
                                     hasEffectfulGet, Kind, Loc);
 
   // Set up a function declaration.
@@ -8425,6 +8444,14 @@ bool Parser::parseAccessorAfterIntroducer(
       Context, Kind, storage, /*declLoc*/ Loc, /*accessorKeywordLoc*/ Loc,
       param, asyncLoc, throwsLoc, thrownTy, CurDeclContext);
   accessor->attachParsedAttrs(Attributes);
+
+  // Attach a parsed effects(...) clause (mirrors the free-function path).
+  if (effectsLoc.isValid()) {
+    SmallVector<TypeLoc, 2> effectTypeLocs;
+    for (auto *repr : declaredEffects)
+      effectTypeLocs.push_back(TypeLoc(repr));
+    accessor->setEffects(effectsLoc, Context.AllocateCopy(effectTypeLocs));
+  }
 
   // Collect this accessor and detect conflicts.
   if (auto existingAccessor = accessors.add(accessor)) {

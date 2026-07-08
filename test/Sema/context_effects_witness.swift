@@ -137,12 +137,7 @@ extension Wrapper: PureProtocol where T: PureProtocol {
   func pureMethod() effects(Never) -> Int { return value.pureMethod() }
 }
 
-// === Step 9: Property witness with performs ===
-// NOTE: Property accessor performs is not yet parseable.
-// The parser rejects `get effects(FileSystem)` with
-// "expected 'get', 'yielding borrow', or 'set' in a protocol property"
-// or "expected '{' to start getter definition".
-// The ASTGen bridging (BridgedAccessorDecl_setParsedPerforms) and
-// the witness check in checkEffects() are in place, but the parser
-// needs to be updated to accept performs on accessor declarations.
-// TODO: Fix swift-syntax parser to accept performs on accessors.
+// === Step 9: Property witness with effects(...) ===
+// The parser now accepts `get effects(...)` on accessors. Witness matching for
+// a pure-effects accessor still needs getEffectfulGetAccessor() to recognize it
+// (it gates on async/throws), so no witness assertion is added here yet.
