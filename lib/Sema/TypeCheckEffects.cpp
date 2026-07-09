@@ -5033,6 +5033,13 @@ static ProtocolDecl *extractProtocolDecl(Type type) {
   return nullptr;
 }
 
+// Effect variable: a type parameter or archetype in effects position, not a concrete row.
+static bool isEffectVariable(Type declaredEffects) {
+  return declaredEffects &&
+         (declaredEffects->isTypeParameter() ||
+          declaredEffects->is<ArchetypeType>());
+}
+
 /// Decompose a performed-effects type into individual protocol decls.
 /// For a single protocol type, returns that protocol.
 /// For a ProtocolCompositionType, returns each member protocol.
@@ -5113,6 +5120,11 @@ resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
     }
 
     for (auto memberTy : memberTypes) {
+      // Variable row (effect generic) has no concrete protocols; skip it rather
+      // than diagnosing it as a non-Effect type.
+      if (isEffectVariable(memberTy))
+        continue;
+
       // Extract the protocol decl from the member type.
       ProtocolDecl *protoDecl = extractProtocolDecl(memberTy);
 
@@ -5589,8 +5601,10 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
         ? resolveDeclaredEffects(fn, ctx)
         : std::nullopt;
 
-    // Validate async/throws compatibility with effects(Never).
-    if (callerEffects && callerEffects->empty()) {
+    // Validate async/throws compatibility with effects(Never). A variable row
+    // (effect generic) also resolves to an empty set but is not the Never bottom.
+    if (callerEffects && callerEffects->empty() &&
+        !isEffectVariable(fn->getResolvedDeclaredEffectsType())) {
       if (fn->hasAsync())
         ctx.Diags.diagnose(fn->getAsyncLoc(),
                            diag::context_effect_async_effects_never);

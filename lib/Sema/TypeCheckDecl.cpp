@@ -2601,6 +2601,13 @@ InterfaceTypeRequest::evaluate(Evaluator &eval, ValueDecl *D) const {
             sawNever = true;
             continue;
           }
+          // A variable row (effect generic) has no concrete protocols; store it
+          // as the row so subst can rewrite it, mirroring the function-type site.
+          if (resolvedType->isTypeParameter() ||
+              resolvedType->is<ArchetypeType>()) {
+            effectTypes.push_back(resolvedType);
+            continue;
+          }
           // Only include protocol types — non-protocol types will be
           // diagnosed later by resolveDeclaredEffects in TypeCheckEffects.
           Type constraintType = resolvedType;

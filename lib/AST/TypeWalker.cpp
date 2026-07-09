@@ -127,6 +127,11 @@ class Traversal : public TypeVisitor<Traversal, bool>
         return true;
     }
 
+    if (Type declaredEffects = ty->getDeclaredEffects()) {
+      if (doIt(declaredEffects))
+        return true;
+    }
+
     if (auto sendableDep = ty->getSendableDependentType()) {
       if (doIt(sendableDep))
         return true;

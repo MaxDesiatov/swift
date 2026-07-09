@@ -1444,6 +1444,68 @@ CanType AbstractionPattern::getEffectiveThrownErrorType() const {
   return type;
 }
 
+std::optional<AbstractionPattern>
+AbstractionPattern::getFunctionDeclaredEffectsType() const {
+  switch (getKind()) {
+  case Kind::Invalid:
+    llvm_unreachable("querying invalid abstraction pattern!");
+  case Kind::ObjCCompletionHandlerArgumentsType:
+  case Kind::Tuple:
+    llvm_unreachable("abstraction pattern for tuple cannot be function");
+  case Kind::Opaque:
+    return *this;
+  case Kind::Type: {
+    if (isTypeParameterOrOpaqueArchetype())
+      return getOpaque();
+
+    if (auto effectsType = cast<AnyFunctionType>(getType())->getDeclaredEffects()) {
+      return AbstractionPattern(getGenericSubstitutions(),
+                                getGenericSignatureForFunctionComponent(),
+                                effectsType->getCanonicalType());
+    }
+
+    return std::nullopt;
+  }
+  case Kind::Discard:
+    llvm_unreachable("don't need to discard function abstractions yet");
+  case Kind::ClangType:
+  case Kind::CFunctionAsMethodType:
+  case Kind::PartialCurriedCFunctionAsMethodType:
+  case Kind::CXXMethodType:
+  case Kind::PartialCurriedCXXMethodType:
+  case Kind::CXXFunctionalConstructorType:
+  case Kind::CurriedObjCMethodType:
+  case Kind::CurriedCFunctionAsMethodType:
+  case Kind::CurriedCXXMethodType:
+  case Kind::PartialCurriedObjCMethodType:
+  case Kind::ObjCMethodType:
+    llvm_unreachable("implement me");
+  case Kind::OpaqueFunction:
+  case Kind::OpaqueDerivativeFunction:
+    return std::nullopt;
+  }
+  llvm_unreachable("bad kind");
+}
+
+std::optional<std::pair<AbstractionPattern, CanType>>
+AbstractionPattern::getFunctionDeclaredEffectsType(
+    CanAnyFunctionType substFnInterfaceType) const {
+  auto optOrigEffectsType = getFunctionDeclaredEffectsType();
+  if (!optOrigEffectsType)
+    return std::nullopt;
+
+  auto substEffectsType = substFnInterfaceType->getDeclaredEffects();
+  if (!substEffectsType)
+    return std::nullopt;
+
+  if (isTypeParameterOrOpaqueArchetype())
+    return std::make_pair(AbstractionPattern::getOpaque(),
+                          substEffectsType->getCanonicalType());
+
+  return std::make_pair(*optOrigEffectsType,
+                        substEffectsType->getCanonicalType());
+}
+
 AbstractionPattern
 AbstractionPattern::getObjCMethodAsyncCompletionHandlerType(
                                      CanType swiftCompletionHandlerType) const {
@@ -3010,6 +3072,14 @@ public:
       newErrorType = visit(errorType, errorPattern);
     }
 
+    CanType newDeclaredEffects;
+
+    if (auto optPair = pattern.getFunctionDeclaredEffectsType(func)) {
+      auto effectsPattern = optPair->first;
+      auto effectsType = optPair->second;
+      newDeclaredEffects = visit(effectsType, effectsPattern);
+    }
+
     auto newResultTy = visit(func.getResult(),
                              pattern.getFunctionResultType());
 
@@ -3021,6 +3091,12 @@ public:
       if (!extInfo)
         extInfo = FunctionType::ExtInfo();
       extInfo = extInfo->withThrows(true, newErrorType);
+    }
+
+    if (newDeclaredEffects) {
+      if (!extInfo)
+        extInfo = FunctionType::ExtInfo();
+      extInfo = extInfo->withDeclaredEffects(newDeclaredEffects);
     }
 
     return CanFunctionType::get(FunctionType::CanParamArrayRef(newParams),

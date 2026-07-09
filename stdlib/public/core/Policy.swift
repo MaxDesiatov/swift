@@ -67,6 +67,9 @@ extension Never: Sendable {}
 
 extension Never: Error {}
 
+@_spi(ExperimentalContextEffects)
+extension Never: Effect {}
+
 extension Never: Equatable, Comparable, Hashable {}
 
 @available(SwiftStdlib 5.5, *)

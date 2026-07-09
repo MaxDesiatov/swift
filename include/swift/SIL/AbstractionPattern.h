@@ -1574,6 +1574,15 @@ public:
   /// a substituted error type.
   CanType getEffectiveThrownErrorType() const;
 
+  /// Given that the value being abstracted is a function, return the
+  /// abstraction pattern for its declared-effects row.
+  std::optional<AbstractionPattern> getFunctionDeclaredEffectsType() const;
+
+  /// The declared-effects analog of the substituting
+  /// `getFunctionThrownErrorType(substFnInterfaceType)` overload.
+  std::optional<std::pair<AbstractionPattern, CanType>>
+  getFunctionDeclaredEffectsType(CanAnyFunctionType substFnInterfaceType) const;
+
   /// Given that the value being abstracted is a function type, return
   /// the abstraction pattern for one of its parameter types.
   AbstractionPattern getFunctionParamType(unsigned index) const;

@@ -890,6 +890,19 @@ case TypeKind::Id:
           extInfo = extInfo->withGlobalActor(globalActorType);
         }
 
+        // Transform the declared-effects row. Unlike thrownError, effects(Never)
+        // is a meaningful bottom row and is never collapsed to "absent".
+        if (Type origDeclaredEffects = origExtInfo.getDeclaredEffects()) {
+          Type declaredEffects = doIt(origDeclaredEffects, pos);
+          if (!declaredEffects)
+            return Type();
+
+          if (declaredEffects.getPointer() != origDeclaredEffects.getPointer())
+            isUnchanged = false;
+
+          extInfo = extInfo->withDeclaredEffects(declaredEffects);
+        }
+
         // Transform the sendable dependent type if present.
         if (auto sendableDep = origExtInfo.getSendableDependentType()) {
           auto [newSendableDep, isSendable] =

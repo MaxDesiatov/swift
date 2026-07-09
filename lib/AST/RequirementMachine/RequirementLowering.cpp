@@ -711,6 +711,13 @@ struct InferRequirementsWalker : public TypeWalker {
           addConformanceConstraint(thrownError, errorProtocol);
         }
       }
+
+      // Infer that the declared-effects row of a function type conforms to Effect.
+      if (auto declaredEffects = fnTy->getDeclaredEffects()) {
+        if (auto *effectProto = ctx.getProtocol(KnownProtocolKind::Effect)) {
+          addConformanceConstraint(declaredEffects, effectProto);
+        }
+      }
     }
 
     // Both is<ExistentialType>() and isSpecialized() end up being true if we

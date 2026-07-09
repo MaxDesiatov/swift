@@ -3796,6 +3796,13 @@ public:
     return Bits.AnyFunctionType.HasDeclaredEffects;
   }
 
+  /// Whether the declared-effects row is a generic effect variable (a type
+  /// parameter or archetype) rather than a concrete protocol set / Never.
+  bool hasVariableDeclaredEffects() const {
+    Type e = getDeclaredEffects();
+    return e && (e->isTypeParameter() || e->is<ArchetypeType>());
+  }
+
   bool hasLifetimeDependencies() const {
     return Bits.AnyFunctionType.HasLifetimeDependencies;
   }

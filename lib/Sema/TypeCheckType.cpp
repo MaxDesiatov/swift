@@ -4757,6 +4757,10 @@ NeverNullType TypeResolver::resolveASTFunctionType(
           !options.contains(TypeResolutionFlags::SilenceDiagnostics)) {
         bool allValid = true;
         for (auto memberTy : memberTypes) {
+          // Variable row (effect generic): skip concrete-protocol validation.
+          if (memberTy->isTypeParameter() || memberTy->is<ArchetypeType>())
+            continue;
+
           ProtocolDecl *protoDecl = nullptr;
           if (auto *pt = memberTy->getAs<ProtocolType>())
             protoDecl = pt->getDecl();
