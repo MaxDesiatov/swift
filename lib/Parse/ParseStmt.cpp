@@ -2207,7 +2207,7 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
     }
   }
 
-  // Parse optional 'performs(Type)' clause for do...handle.
+  // Parse optional 'effects(Type)' clause for do...handle.
   SourceLoc effectsLoc;
   SmallVector<TypeRepr *, 2> effectsTypes;
   if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
@@ -2301,15 +2301,15 @@ ParserResult<Stmt> Parser::parseStmtDo(LabeledStmtInfo labelInfo,
       handleClauses.push_back(clause);
     } while (consumeIf(tok::comma));
 
-    SmallVector<TypeLoc, 2> performsTypeLocs;
+    SmallVector<TypeLoc, 2> effectsTypeLocs;
     for (auto *repr : effectsTypes)
-      performsTypeLocs.push_back(TypeLoc(repr));
+      effectsTypeLocs.push_back(TypeLoc(repr));
 
     return makeParserResult(
         status,
         DoHandleStmt::create(Context, labelInfo, doLoc, body.get(),
                              handleClauses, effectsLoc,
-                             Context.AllocateCopy(performsTypeLocs)));
+                             Context.AllocateCopy(effectsTypeLocs)));
   }
 
   if (throwsLoc.isValid()) {

@@ -72,11 +72,11 @@ func testMultiMissing() effects(FileSystem) {
   // expected-error @-1 {{call to function that effects 'Logging', 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
 }
 
-// ERROR: non-Effect protocol in performs clause
+// ERROR: non-Effect protocol in effects clause
 func testNonEffect() effects(Equatable) {}
 // expected-error @-1 {{type 'Equatable' in 'effects' clause does not conform to 'Effect'}}
 
-// ERROR: non-protocol type in performs clause
+// ERROR: non-protocol type in effects clause
 func testNonProtocol() effects(Int) {}
 // expected-error @-1 {{type 'Int' in 'effects' clause does not conform to 'Effect'}}
 
@@ -160,7 +160,7 @@ func testInitPerforms() effects(Never) {
 
 // --- Closure effect typing ---
 
-// Calling a closure parameter with performs requires the effect
+// Calling a closure parameter with effects requires the effect
 func testClosureCallParam(_ f: () effects(FileSystem) -> Void) effects(Never) {
   f() // expected-error {{has effects}}
 }
@@ -186,7 +186,7 @@ struct MockNet: Network {
   mutating func fetch(url: String) -> String { "mock" }
 }
 
-// Closure body with performs is checked for context effects
+// Closure body with effects is checked for context effects
 func testClosureBodyChecked() effects(FileSystem) {
   let c: () effects(FileSystem) -> Void = {
     netOnly()  // expected-error {{effects 'Network'}}
@@ -210,7 +210,7 @@ func testClosureBodyNever() effects(FileSystem) {
   c()
 }
 
-// Higher-order: closure passed as performs parameter
+// Higher-order: closure passed as effects parameter
 func takesPerformsParam(_ f: () effects(FileSystem) -> Void) effects(FileSystem) { f() }
 func testHigherOrderClosure() effects(FileSystem) {
   takesPerformsParam {
@@ -237,17 +237,17 @@ func testNoescapeClosure() effects(Never) {
   takeNoescape { _ = 42 }  // OK
 }
 
-// --- Function type performs validation ---
+// --- Function type effects validation ---
 
-// ERROR: non-Effect protocol in function type performs clause
+// ERROR: non-Effect protocol in function type effects clause
 func testFnTypeNonEffect(_ f: () effects(Equatable) -> Void) {}
 // expected-error @-1 {{does not conform to 'Effect'}}
 
-// ERROR: non-protocol type in function type performs clause
+// ERROR: non-protocol type in function type effects clause
 func testFnTypeNonProtocol(_ f: () effects(Int) -> Void) {}
 // expected-error @-1 {{does not conform to 'Effect'}}
 
-// ERROR: struct type in function type performs clause
+// ERROR: struct type in function type effects clause
 func testFnTypeStruct(_ f: () effects(MyStruct) -> Void) {}
 // expected-error @-1 {{does not conform to 'Effect'}}
 
@@ -324,7 +324,7 @@ func testClosureWiderThanEnclosing() effects(FileSystem) {
   _ = c
 }
 
-// --- Escaping closure with performs in Never context ---
+// --- Escaping closure with effects in Never context ---
 
 func testEscapingClosureWithPerformsInNever() effects(Never) {
   let _: () effects(FileSystem) -> Void = {
@@ -335,7 +335,7 @@ func testEscapingClosureWithPerformsInNever() effects(Never) {
 
 // --- Combined effect specifiers ---
 
-// performs with async and throws on function types — verify parsing+resolution
+// effects with async and throws on function types — verify parsing+resolution
 func testCombinedEffectsType(
   _ f: () effects(FileSystem) async throws -> Void
 ) {}

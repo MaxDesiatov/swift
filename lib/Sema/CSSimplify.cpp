@@ -3312,11 +3312,11 @@ ConstraintSystem::matchFunctionTypes(FunctionType *func1, FunctionType *func2,
     return SolutionKind::Error;
   }
 
-  // A function with declaredEffects (e.g. performs(Never)) is a subtype of
+  // A function with declaredEffects (e.g. effects(Never)) is a subtype of
   // an unrestricted function (no declaredEffects). The effect checker
-  // validates performs correctness separately. For Subtype/Conversion
+  // validates effects correctness separately. For Subtype/Conversion
   // constraints, allow any declaredEffects mismatch — closures inherit
-  // performs context from parameters, and the effect checker enforces
+  // effects context from parameters, and the effect checker enforces
   // restrictions on the caller side.
   if (func1->hasDeclaredEffects() != func2->hasDeclaredEffects()) {
     // For Bind/Equal, declaredEffects must match exactly.

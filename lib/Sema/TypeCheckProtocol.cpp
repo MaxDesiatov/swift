@@ -593,7 +593,7 @@ checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
     return RequirementMatch(getStandinForAccessor(witness, AccessorKind::Get),
                             MatchKind::ThrowsConflict);
 
-  // Check performs on accessor declarations. Read the row from the getter's
+  // Check effects on accessor declarations. Read the row from the getter's
   // function type once and reuse it for both the presence guard and the subset
   // check, so a deserialized getter (no source TypeLocs) is handled and the
   // interface type is walked once.
@@ -607,7 +607,7 @@ checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
               ? witnessGetter->getMethodInterfaceType()->getAs<AnyFunctionType>()
               : nullptr;
       if (!witnessFnTy || !witnessFnTy->hasDeclaredEffects()) {
-        // Witness has no performs clause but requirement does.
+        // Witness has no effects clause but requirement does.
         if (witnessGetter &&
             witnessGetter->getModuleContext()->isBuiltinModule())
           ; // OK -- Builtin module is exempt.
@@ -616,7 +616,7 @@ checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
               getStandinForAccessor(witness, AccessorKind::Get),
               MatchKind::EffectsConflict);
       } else {
-        // Both have performs -- subset check.
+        // Both have effects -- subset check.
         auto reqProtocols =
             extractEffectProtocols(reqFnTy->getDeclaredEffects());
         auto witnessProtocols =
@@ -1030,7 +1030,7 @@ RequirementMatch swift::matchWitness(
     }
   }
 
-  // Check performed effects: if requirement has performs, witness must too.
+  // Check performed effects: if requirement has an effects clause, witness must too.
   if (auto *reqFunc = dyn_cast<AbstractFunctionDecl>(req)) {
     auto getMethodFnType = [](AbstractFunctionDecl *decl)
         -> const AnyFunctionType * {
@@ -1051,7 +1051,7 @@ RequirementMatch swift::matchWitness(
         else
           return RequirementMatch(witness, MatchKind::EffectsConflict);
       } else {
-        // Both have performs -- check that the witness's effect set is a
+        // Both have effects -- check that the witness's effect set is a
         // subset of the requirement's. Each protocol in the witness's set
         // must equal or inherit from at least one requirement protocol.
         auto reqProtocols =

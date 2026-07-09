@@ -14,7 +14,7 @@
 ///
 /// Protocols that conform to `Effect` declare a set of operations that
 /// represent a side effect. Functions can declare which effects they
-/// perform using `performs(EffectName)` clauses, and callers can provide
+/// perform using `effects(EffectName)` clauses, and callers can provide
 /// concrete handlers for those effects.
 ///
 ///     protocol FileSystem: Effect {

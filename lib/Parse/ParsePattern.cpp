@@ -823,7 +823,7 @@ Parser::parseFunctionSignature(DeclBaseName SimpleName,
                                    defaultArgs);
   FullName = DeclName(Context, SimpleName, NamePieces);
 
-  // Check for the 'performs', 'async' and 'throws' keywords.
+  // Check for the 'effects', 'async' and 'throws' keywords.
   reasync = false;
   rethrows = false;
   thrownType = nullptr;
@@ -896,7 +896,7 @@ ParserStatus Parser::parseEffectsSpecifiers(SourceLoc existingArrowLoc,
                                             SmallVectorImpl<TypeRepr *> *declaredEffects) {
   ParserStatus status;
   while (true) {
-    // 'performs' (gated behind experimental feature)
+    // 'effects' (gated behind experimental feature)
     if (effectsLoc && declaredEffects &&
         Context.LangOpts.hasFeature(Feature::ContextEffects) &&
         Tok.isContextualKeyword("effects")) {
@@ -905,17 +905,17 @@ ParserStatus Parser::parseEffectsSpecifiers(SourceLoc existingArrowLoc,
             .highlight(*effectsLoc)
             .fixItRemove(Tok.getLoc());
       } else if (existingArrowLoc.isValid()) {
-        diagnose(Tok, diag::async_or_throws_in_wrong_position, "performs")
+        diagnose(Tok, diag::async_or_throws_in_wrong_position, "effects")
             .fixItRemove(Tok.getLoc())
-            .fixItInsert(existingArrowLoc, "performs(...) ");
+            .fixItInsert(existingArrowLoc, "effects(...) ");
       } else if (asyncLoc.isValid()) {
         diagnose(Tok, diag::effects_after_async_or_throws, "async")
             .fixItRemove(Tok.getLoc())
-            .fixItInsert(asyncLoc, "performs(...) ");
+            .fixItInsert(asyncLoc, "effects(...) ");
       } else if (throwsLoc.isValid()) {
         diagnose(Tok, diag::effects_after_async_or_throws, "throws")
             .fixItRemove(Tok.getLoc())
-            .fixItInsert(throwsLoc, "performs(...) ");
+            .fixItInsert(throwsLoc, "effects(...) ");
       }
       if (effectsLoc->isInvalid()) {
         Tok.setKind(tok::contextual_keyword);
@@ -923,7 +923,7 @@ ParserStatus Parser::parseEffectsSpecifiers(SourceLoc existingArrowLoc,
       }
       consumeToken();
 
-      // Parse the parenthesized type: performs(Type)
+      // Parse the parenthesized type: effects(Type)
       SourceLoc lParenLoc;
       if (consumeIf(tok::l_paren, lParenLoc)) {
         ParserResult<TypeRepr> ty =

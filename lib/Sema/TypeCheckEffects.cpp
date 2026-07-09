@@ -5058,9 +5058,9 @@ extractEffectProtocolsImpl(Type declaredEffects) {
   return result;
 }
 
-/// Resolve the types in a function's performs clause to ProtocolDecl values.
-/// Returns std::nullopt if the function has no performs clause (unrestricted).
-/// Returns an empty vector for performs(Never).
+/// Resolve the types in a function's effects clause to ProtocolDecl values.
+/// Returns std::nullopt if the function has no effects clause (unrestricted).
+/// Returns an empty vector for effects(Never).
 /// Returns a non-empty vector of the declared effect protocols otherwise.
 static std::optional<SmallVector<ProtocolDecl *, 4>>
 resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
@@ -5147,7 +5147,7 @@ resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
   if (sawNever && !result.empty()) {
     ctx.Diags.diagnose(fn->getEffectsLoc(),
                        diag::context_effect_never_with_other_types);
-    result.clear(); // Treat as performs(Never)
+    result.clear(); // Treat as effects(Never)
   }
 
   return result;
@@ -5330,7 +5330,7 @@ public:
 
   ShouldRecurse_t checkDoHandle(DoHandleStmt *S) {
     if (S->hasEffectsClause()) {
-      // Save current state — the performs clause creates an isolated context.
+      // Save current state — the effects clause creates an isolated context.
       auto savedCallerEffects = std::move(CallerEffects);
       auto savedCallerEffectSet = std::move(CallerEffectSet);
       auto savedNarrowingScope = std::move(NarrowingScope);
@@ -5340,7 +5340,7 @@ public:
         NarrowingScope = std::move(savedNarrowingScope);
       };
 
-      // Set CallerEffects to exactly the declared performs types.
+      // Set CallerEffects to exactly the declared effects types.
       CallerEffects.emplace();
       CallerEffectSet.clear();
       NarrowingScope.clear();
@@ -5354,10 +5354,10 @@ public:
         }
       }
 
-      // Walk the body — only declared performs effects are available.
+      // Walk the body — only declared effects are available.
       S->getBody()->walk(*this);
     } else {
-      // No performs clause — use handle clauses for narrowing (existing behavior).
+      // No effects clause — use handle clauses for narrowing (existing behavior).
       NarrowingScope.push_back({});
       for (auto &clause : S->getHandleClauses()) {
         auto type = clause.EffectType.getType();
@@ -5382,7 +5382,7 @@ public:
   // Unlike checkApply which treats unannotated functions as unrestricted,
   // perform always requires the effect to be explicitly available. perform
   // is a direct effect invocation site (like throw), while calling a
-  // performs function just propagates the requirement.
+  // effects function just propagates the requirement.
   ShouldRecurse_t checkWithEffect(WithEffectExpr *E) {
     // Extract the effect protocol from the closure parameter type.
     auto *closure = dyn_cast_or_null<ClosureExpr>(E->getSubExpr());
@@ -5457,7 +5457,7 @@ public:
 
     auto *calleeDecl = fnRef.getFunction();
 
-    // If caller has no performs clause and no narrowing scopes, it's
+    // If caller has no effects clause and no narrowing scopes, it's
     // unrestricted -- allow everything.
     if (!CallerEffects && NarrowingScope.empty())
       return ShouldRecurse;
@@ -5499,7 +5499,7 @@ public:
   /// Check performed effects on a call where the callee is a function type
   /// (not an AbstractFunctionDecl).
   ShouldRecurse_t checkApplyFunctionType(ApplyExpr *E) {
-    // If caller has no performs clause and no narrowing scopes, it's
+    // If caller has no effects clause and no narrowing scopes, it's
     // unrestricted -- allow everything.
     if (!CallerEffects && NarrowingScope.empty())
       return ShouldRecurse;
@@ -5513,7 +5513,7 @@ public:
       return ShouldRecurse;
 
     if (!fnType->hasDeclaredEffects()) {
-      // Function type without performs clause in a restricted context.
+      // Function type without effects clause in a restricted context.
       Ctx.Diags.diagnose(E->getLoc(),
                          diag::context_effect_call_unrestricted_fn_type);
       return ShouldRecurse;
@@ -5582,14 +5582,14 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
       superInit->walk(checker);
 
   // Check context effects coverage. Run on all functions when ContextEffects
-  // is enabled (not just those with performs clauses), because do...handle
+  // is enabled (not just those with effects clauses), because do...handle
   // blocks can introduce effect narrowing in unannotated functions.
   if (ctx.LangOpts.hasFeature(Feature::ContextEffects)) {
     auto callerEffects = fn->hasEffects()
         ? resolveDeclaredEffects(fn, ctx)
         : std::nullopt;
 
-    // Validate async/throws compatibility with performs(Never).
+    // Validate async/throws compatibility with effects(Never).
     if (callerEffects && callerEffects->empty()) {
       if (fn->hasAsync())
         ctx.Diags.diagnose(fn->getAsyncLoc(),

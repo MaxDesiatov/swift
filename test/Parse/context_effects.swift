@@ -29,11 +29,11 @@ do {
     let _ = readFile(at: "test.txt")
 } handle MockFS() as FileSystem
 
-// Function type with performs clause
+// Function type with effects clause
 // CHECK: type_function
 let _: () effects(FileSystem) -> Void
 
-// Function taking a performs-annotated function type parameter
+// Function taking an effects-annotated function type parameter
 // CHECK: func_decl{{.*}}"takesPerformsFS
 func takesPerformsFS(_ f: () effects(FileSystem) -> Void) {}
 

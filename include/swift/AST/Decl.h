@@ -7992,7 +7992,7 @@ protected:
   /// The error type that is being thrown.
   TypeLoc ThrownType;
 
-  /// Location of the 'performs' token.
+  /// Location of the 'effects' token.
   SourceLoc EffectsLoc;
 
   /// The list of declared effect types.
@@ -8140,10 +8140,10 @@ public:
   /// Returns if the function throws or is async.
   bool hasEffect(EffectKind kind) const;
 
-  /// Returns true if the function has a 'performs' clause for context effects.
+  /// Returns true if the function has a 'effects' clause for context effects.
   bool hasEffects() const { return EffectsLoc.isValid(); }
 
-  /// Retrieve the location of the 'performs' keyword, if present.
+  /// Retrieve the location of the 'effects' keyword, if present.
   SourceLoc getEffectsLoc() const { return EffectsLoc; }
 
   /// Retrieve the list of declared effect types.
@@ -8154,7 +8154,7 @@ public:
   /// available for deserialized declarations.
   Type getResolvedDeclaredEffectsType() const;
 
-  /// Set the performs clause information.
+  /// Set the effects clause information.
   void setEffects(SourceLoc loc, ArrayRef<TypeLoc> effects) {
     EffectsLoc = loc;
     DeclaredEffects = effects;

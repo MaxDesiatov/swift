@@ -11,7 +11,7 @@ struct MockFS: FileSystem {
   mutating func readFile(at path: String) -> String { "mock: \(path)" }
 }
 
-// OK: perform with correct effect available via performs clause
+// OK: perform with correct effect available via effects clause
 func testPerformOK() effects(FileSystem) {
   let content = withEffect { (fs: inout FileSystem) in
     fs.readFile(at: "test.txt")
@@ -26,7 +26,7 @@ func testPerformWrongEffect() effects(Network) {
   }
 }
 
-// ERROR: perform in unannotated function (no handler, no performs clause)
+// ERROR: perform in unannotated function (no handler, no effects clause)
 func testPerformNoClause() {
   withEffect { (fs: inout FileSystem) in // expected-error {{effect 'FileSystem' is not available}}
     _ = fs.readFile(at: "test.txt")
@@ -56,7 +56,7 @@ func testPerformReturnType() effects(FileSystem) {
 }
 
 // Closure effect typing is the immediate next step after Phase 1.4 (Phase 1.4b).
-// Requires performs on AnyFunctionType, closure body validation, and call-site checking.
+// Requires effects on AnyFunctionType, closure body validation, and call-site checking.
 // For now, closures are opaque effect boundaries — perform inside a closure
 // is not checked, and calling a closure doesn't propagate effects.
 

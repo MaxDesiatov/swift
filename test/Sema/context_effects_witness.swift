@@ -116,7 +116,7 @@ struct MultiEffectWitness: SingleEffectReq { // expected-error {{type 'MultiEffe
   func work() effects(FileSystem & NetworkProtocol) {} // expected-note {{candidate does not satisfy effects('FileSystem') effect restriction of protocol requirement}}
 }
 
-// === Step 7: Default implementation without performs for effects(Never) requirement ===
+// === Step 7: Default implementation without an effects clause for effects(Never) requirement ===
 
 protocol DefaultedPure {
   func compute() effects(Never) -> Int // expected-note {{protocol requires function 'compute()' with type '() effects(Never) -> Int'}}
@@ -126,7 +126,7 @@ extension DefaultedPure {
   func compute() -> Int { return 0 } // expected-note {{candidate does not satisfy effects('Never') effect restriction of protocol requirement}}
 }
 
-// Default impl without performs does not satisfy effects(Never) requirement.
+// Default impl without an effects clause does not satisfy effects(Never) requirement.
 struct UsesDefault: DefaultedPure {} // expected-error {{type 'UsesDefault' does not conform to protocol 'DefaultedPure'}} expected-note {{add stubs for conformance}}
 
 // === Step 8: Conditional conformance ===

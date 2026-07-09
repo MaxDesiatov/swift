@@ -2035,7 +2035,7 @@ public:
     // Look up the Effect protocol.
     auto *effectProto = Ctx.getProtocol(KnownProtocolKind::Effect);
 
-    // Resolve performs clause types if present.
+    // Resolve effects clause types if present.
     llvm::SmallPtrSet<ProtocolDecl *, 4> declaredEffects;
     for (auto &typeLoc : S->getMutableEffectsTypes()) {
       auto *typeRepr = typeLoc.getTypeRepr();
@@ -2145,7 +2145,7 @@ public:
       }
     }
 
-    // Check that every declared performs effect has a handler.
+    // Check that every declared effect has a handler.
     if (S->hasEffectsClause()) {
       for (auto *declaredProto : declaredEffects) {
         if (!handledEffects.count(declaredProto)) {

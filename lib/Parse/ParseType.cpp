@@ -2123,7 +2123,7 @@ bool Parser::isAtFunctionTypeArrow() {
   if (Tok.is(tok::arrow))
     return true;
 
-  // Check for performs(...) as an effect specifier on function types.
+  // Check for effects(...) as an effect specifier on function types.
   if (Context.LangOpts.hasFeature(Feature::ContextEffects) &&
       Tok.isContextualKeyword("effects") && peekToken().is(tok::l_paren)) {
     BacktrackingScope backtrack(*this);

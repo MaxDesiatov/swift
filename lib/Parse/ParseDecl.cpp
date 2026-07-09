@@ -9488,7 +9488,7 @@ ParserResult<FuncDecl> Parser::parseDeclFunc(SourceLoc StaticLoc,
                               BodyParams, FuncRetTy,
                               CurDeclContext);
 
-  // Set the performs clause if present.
+  // Set the effects clause if present.
   if (effectsLoc.isValid()) {
     SmallVector<TypeLoc, 2> effectTypeLocs;
     for (auto *repr : declaredEffects)
@@ -10567,7 +10567,7 @@ Parser::parseDeclInit(ParseDeclOptions Flags, DeclAttributes &Attributes) {
   CD->setImplicitlyUnwrappedOptional(IUO);
   CD->attachParsedAttrs(Attributes);
 
-  // Set the performs clause if present.
+  // Set the effects clause if present.
   if (effectsLoc.isValid()) {
     SmallVector<TypeLoc, 2> effectTypeLocs;
     for (auto *repr : declaredEffects)
