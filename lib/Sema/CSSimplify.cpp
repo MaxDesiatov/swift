@@ -2926,7 +2926,7 @@ matchFunctionThrowing(ConstraintSystem &cs,
 /// absent<->concrete conversion stays permissive, because a bare closure adopts
 /// its target's row and the effects walker enforces calls, not this conversion.
 /// A type-parameter/archetype/type-variable row is not a concrete set, so the
-/// order does not apply and it is accepted.
+/// order does not apply; it is bound against the other row to infer the effect.
 static ConstraintSystem::SolutionKind
 matchDeclaredEffects(ConstraintSystem &cs, FunctionType *func1,
                      FunctionType *func2, ConstraintKind kind,
@@ -2945,13 +2945,22 @@ matchDeclaredEffects(ConstraintSystem &cs, FunctionType *func1,
     return ConstraintSystem::SolutionKind::Solved;
 
   // A non-concrete row (type parameter / archetype / type variable) is not a
-  // protocol set, so the order does not apply; accept it.
+  // protocol set. Bind it against the other row so the solver infers the effect
+  // parameter, as matchFunctionThrowing does for a variable thrown error.
   auto isVariable = [](Type row) {
     return row->isTypeParameter() || row->is<ArchetypeType>() ||
            row->hasTypeVariable();
   };
-  if (isVariable(row1) || isVariable(row2))
+  if (isVariable(row1) || isVariable(row2)) {
+    ConstraintKind subKind =
+        (kind < ConstraintKind::Subtype) ? ConstraintKind::Equal
+                                         : ConstraintKind::Subtype;
+    const auto subflags = getDefaultDecompositionOptions(flags);
+    if (cs.matchTypes(row1, row2, subKind, subflags, locator) ==
+        ConstraintSystem::SolutionKind::Error)
+      return ConstraintSystem::SolutionKind::Error;
     return ConstraintSystem::SolutionKind::Solved;
+  }
 
   // Both concrete: decompose to protocol sets.
   auto set1 = extractEffectProtocols(row1);

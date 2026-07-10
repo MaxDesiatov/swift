@@ -5474,6 +5474,12 @@ public:
     if (!CallerEffects && NarrowingScope.empty())
       return ShouldRecurse;
 
+    // A generic effect parameter carries no concrete protocols in the decl's
+    // interface row; its value is only known after substitution. Read the
+    // inferred row off the applied callee type instead.
+    if (isEffectVariable(calleeDecl->getResolvedDeclaredEffectsType()))
+      return checkApplyFunctionType(E);
+
     // Resolve the callee's row from either its parse-time clause or, for a
     // deserialized declaration, its interface type.
     const auto &calleeEffects = getOrResolveEffects(calleeDecl);

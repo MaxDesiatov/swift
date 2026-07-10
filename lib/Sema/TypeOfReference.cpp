@@ -576,10 +576,16 @@ static FunctionType *substGenericArgs(
   if (thrownError)
     thrownError = substFn(thrownError);
 
+  auto extInfo =
+      funcTy->getExtInfo().withThrows(funcTy->isThrowing(), thrownError);
+
+  // Open a generic effect parameter into a type variable; otherwise the opened
+  // reference type still has a type parameter and trips resolveOverload.
+  if (Type declaredEffects = funcTy->getDeclaredEffects())
+    extInfo = extInfo.withDeclaredEffects(substFn(declaredEffects));
+
   // Build the resulting (non-generic) function type.
-  return FunctionType::get(params, resultTy,
-                           funcTy->getExtInfo().withThrows(
-                              funcTy->isThrowing(), thrownError));
+  return FunctionType::get(params, resultTy, extInfo);
 }
 
 FunctionType *ConstraintSystem::openFunctionType(
