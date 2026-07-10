@@ -384,6 +384,9 @@ enum class FixKind : uint8_t {
   /// Ignore a mismatch in the thrown error type.
   IgnoreThrownErrorMismatch,
 
+  /// Ignore a mismatch in the declared-effects row.
+  IgnoreEffectsMismatch,
+
   /// Fix conversion from async to sync function by removing explicit
   /// `async` attribute from the source function.
   DropAsyncAttribute,
@@ -1128,6 +1131,31 @@ public:
 
   static bool classof(const ConstraintFix *fix) {
     return fix->getKind() == FixKind::IgnoreThrownErrorMismatch;
+  }
+};
+
+/// This is a contextual mismatch between the declared-effects rows of two
+/// function types (e.g. converting `() effects(A & B) -> Void` to
+/// `() effects(A) -> Void`).
+class IgnoreEffectsMismatch final : public ContextualMismatch {
+  IgnoreEffectsMismatch(ConstraintSystem &cs, Type fromEffects, Type toEffects,
+                        ConstraintLocator *locator)
+      : ContextualMismatch(cs, FixKind::IgnoreEffectsMismatch, fromEffects,
+                           toEffects, locator) {
+    assert(!fromEffects->isEqual(toEffects));
+  }
+
+public:
+  std::string getName() const override { return "ignore effect-row mismatch"; }
+
+  bool diagnose(const Solution &solution, bool asNote = false) const override;
+
+  static IgnoreEffectsMismatch *create(ConstraintSystem &cs, Type fromEffects,
+                                       Type toEffects,
+                                       ConstraintLocator *locator);
+
+  static bool classof(const ConstraintFix *fix) {
+    return fix->getKind() == FixKind::IgnoreEffectsMismatch;
   }
 };
 /// This is a contextual mismatch between async and non-async

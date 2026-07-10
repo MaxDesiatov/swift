@@ -986,6 +986,23 @@ public:
   bool diagnoseAsError() override;
 };
 
+/// Diagnose an invalid conversion between the declared-effects rows of two
+/// function types, e.g.
+///
+/// ```swift
+/// let _: () effects(FileSystem) -> Void = someFileSystemAndNetworkFn
+///   // effects(FileSystem & Network) can't be narrowed to effects(FileSystem)
+/// ```
+class EffectsTypeConversionFailure final : public ContextualFailure {
+public:
+  EffectsTypeConversionFailure(const Solution &solution, Type fromType,
+                               Type toType, ConstraintLocator *locator)
+      : ContextualFailure(solution, fromType, toType, locator) {
+  }
+
+  bool diagnoseAsError() override;
+};
+
 /// Diagnose failures related to conversion between 'async' function type
 /// and a synchronous one e.g.
 ///

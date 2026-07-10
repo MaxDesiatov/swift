@@ -1764,6 +1764,21 @@ IgnoreThrownErrorMismatch *IgnoreThrownErrorMismatch::create(ConstraintSystem &c
       IgnoreThrownErrorMismatch(cs, fromErrorType, toErrorType, locator);
 }
 
+bool IgnoreEffectsMismatch::diagnose(const Solution &solution,
+                                     bool asNote) const {
+  EffectsTypeConversionFailure failure(solution, getFromType(), getToType(),
+                                       getLocator());
+  return failure.diagnose(asNote);
+}
+
+IgnoreEffectsMismatch *IgnoreEffectsMismatch::create(ConstraintSystem &cs,
+                                                     Type fromEffects,
+                                                     Type toEffects,
+                                                     ConstraintLocator *locator) {
+  return new (cs.getAllocator())
+      IgnoreEffectsMismatch(cs, fromEffects, toEffects, locator);
+}
+
 bool DropAsyncAttribute::diagnose(const Solution &solution,
                                    bool asNote) const {
   AsyncFunctionConversionFailure failure(solution, getFromType(),

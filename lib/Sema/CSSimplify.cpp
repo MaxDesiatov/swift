@@ -2919,6 +2919,73 @@ matchFunctionThrowing(ConstraintSystem &cs,
   }
 }
 
+/// Match the declared-effects rows of two function types: a function performing
+/// fewer effects is a subtype of one performing more. Only two present rows are
+/// ordered, by protocol identity (as the effects walker compares them);
+/// effects(Never) is the empty set (the bottom) and an absent row is the top. An
+/// absent<->concrete conversion stays permissive, because a bare closure adopts
+/// its target's row and the effects walker enforces calls, not this conversion.
+/// A type-parameter/archetype/type-variable row is not a concrete set, so the
+/// order does not apply and it is accepted.
+static ConstraintSystem::SolutionKind
+matchDeclaredEffects(ConstraintSystem &cs, FunctionType *func1,
+                     FunctionType *func2, ConstraintKind kind,
+                     ConstraintSystem::TypeMatchOptions flags,
+                     ConstraintLocatorBuilder locator) {
+  Type row1 = func1->getDeclaredEffects();
+  Type row2 = func2->getDeclaredEffects();
+
+  // Order only two present rows. effects(Any) resolves to an absent row (the
+  // top); effects(Never) to a present, empty row (the bottom).
+  if (!row1 || !row2)
+    return ConstraintSystem::SolutionKind::Solved;
+
+  // Identical rows need no constraint (keeps the common case off the set path).
+  if (row1->isEqual(row2))
+    return ConstraintSystem::SolutionKind::Solved;
+
+  // A non-concrete row (type parameter / archetype / type variable) is not a
+  // protocol set, so the order does not apply; accept it.
+  auto isVariable = [](Type row) {
+    return row->isTypeParameter() || row->is<ArchetypeType>() ||
+           row->hasTypeVariable();
+  };
+  if (isVariable(row1) || isVariable(row2))
+    return ConstraintSystem::SolutionKind::Solved;
+
+  // Both concrete: decompose to protocol sets.
+  auto set1 = extractEffectProtocols(row1);
+  auto set2 = extractEffectProtocols(row2);
+
+  // func1 <: func2 iff set(func1) is a subset (by protocol identity) of set(func2).
+  auto subsetOf = [](ArrayRef<ProtocolDecl *> a, ArrayRef<ProtocolDecl *> b) {
+    return llvm::all_of(
+        a, [&](ProtocolDecl *p) { return llvm::is_contained(b, p); });
+  };
+
+  bool matches;
+  if (kind < ConstraintKind::Subtype) {
+    // Bind/Equal/BindParam/BindToPointerType: equal rows. Consistent with
+    // matchFunctionThrowing's treatment of these kinds for concrete rows.
+    matches = subsetOf(set1, set2) && subsetOf(set2, set1);
+  } else {
+    // Subtype/Conversion: func1's row must be a subtype of func2's.
+    matches = subsetOf(set1, set2);
+  }
+
+  if (matches)
+    return ConstraintSystem::SolutionKind::Solved;
+
+  if (!cs.shouldAttemptFixes())
+    return ConstraintSystem::SolutionKind::Error;
+
+  auto *fix = IgnoreEffectsMismatch::create(cs, row1, row2,
+                                            cs.getConstraintLocator(locator));
+  if (cs.recordFix(fix))
+    return ConstraintSystem::SolutionKind::Error;
+  return ConstraintSystem::SolutionKind::Solved;
+}
+
 ConstraintSystem::SolutionKind ConstraintSystem::matchFunctionSendability(
     FunctionType *func1, FunctionType *func2, ConstraintKind kind,
     ConstraintSystem::TypeMatchOptions flags,
@@ -3312,19 +3379,10 @@ ConstraintSystem::matchFunctionTypes(FunctionType *func1, FunctionType *func2,
     return SolutionKind::Error;
   }
 
-  // A function with declaredEffects (e.g. effects(Never)) is a subtype of
-  // an unrestricted function (no declaredEffects). The effect checker
-  // validates effects correctness separately. For Subtype/Conversion
-  // constraints, allow any declaredEffects mismatch — closures inherit
-  // effects context from parameters, and the effect checker enforces
-  // restrictions on the caller side.
-  if (func1->hasDeclaredEffects() != func2->hasDeclaredEffects()) {
-    // For Bind/Equal, declaredEffects must match exactly.
-    if (kind < ConstraintKind::Subtype) {
-      if (!shouldAttemptFixes())
-        return SolutionKind::Error;
-    }
-  }
+  // Match the declared-effects row under the effect-subtyping order.
+  if (matchDeclaredEffects(*this, func1, func2, kind, flags, locator) ==
+      SolutionKind::Error)
+    return SolutionKind::Error;
 
   // Determine how we match up the input/result types.
   ConstraintKind subKind;
@@ -15924,6 +15982,10 @@ ConstraintSystem::SolutionKind ConstraintSystem::simplifyFixConstraint(
   }
 
   case FixKind::IgnoreThrownErrorMismatch: {
+    return recordFix(fix, FixImpact::TypeMismatch) ? SolutionKind::Error
+                                                   : SolutionKind::Solved;
+  }
+  case FixKind::IgnoreEffectsMismatch: {
     return recordFix(fix, FixImpact::TypeMismatch) ? SolutionKind::Error
                                                    : SolutionKind::Solved;
   }

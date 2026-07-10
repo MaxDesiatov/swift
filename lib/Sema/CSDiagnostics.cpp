@@ -7549,6 +7549,11 @@ bool ThrownErrorTypeConversionFailure::diagnoseAsError() {
   return true;
 }
 
+bool EffectsTypeConversionFailure::diagnoseAsError() {
+  emitDiagnostic(diag::effects_type_mismatch, getFromType(), getToType());
+  return true;
+}
+
 bool AsyncFunctionConversionFailure::diagnoseAsError() {
   auto *locator = getLocator();
 
