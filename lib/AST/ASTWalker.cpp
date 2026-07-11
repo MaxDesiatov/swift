@@ -1050,6 +1050,11 @@ class Traversal : public ASTVisitor<Traversal, Expr*, Stmt*,
         return nullptr;
     }
 
+    for (auto *effectRepr : expr->getExplicitDeclaredEffectReprs()) {
+      if (doIt(effectRepr))
+        return nullptr;
+    }
+
     if (expr->hasExplicitResultType()) {
       if (doIt(expr->getExplicitResultTypeRepr()))
         return nullptr;

@@ -160,8 +160,9 @@ BridgedClosureExpr BridgedClosureExpr_createParsed(
 
   return new (context) ClosureExpr(
       cAttributes.unbridged(), bracketRange, cCapturedSelfDecl.unbridged(),
-      cParameterList.unbridged(), asyncLoc, throwsLoc, throwsType, arrowLoc,
-      inLoc, explicitResultType, declContext);
+      cParameterList.unbridged(), asyncLoc, throwsLoc, throwsType,
+      /*effectsLoc=*/SourceLoc(), /*declaredEffects=*/{}, arrowLoc, inLoc,
+      explicitResultType, declContext);
 }
 
 BridgedParameterList

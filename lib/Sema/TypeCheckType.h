@@ -766,6 +766,13 @@ bool diagnoseMissingOwnership(ParamSpecifier ownership,
                               TypeRepr *repr, Type ty,
                               const TypeResolution &resolution);
 
+/// Reduce the collected effect member types of an `effects(...)` clause to a
+/// single declared-effects row. `Never` collapses to the Never type; a mixed
+/// `Never` and non-empty member set diagnoses \c context_effect_never_with_other_types
+/// at \p effectsLoc and yields a null row.
+Type reduceDeclaredEffectsRow(ArrayRef<Type> effectTypes, bool sawNever,
+                              SourceLoc effectsLoc, ASTContext &ctx);
+
 } // end namespace swift
 
 #endif /* SWIFT_SEMA_TYPE_CHECK_TYPE_H */

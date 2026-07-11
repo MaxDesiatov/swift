@@ -4404,6 +4404,25 @@ TypeResolver::resolveOpaqueReturnType(TypeRepr *repr, StringRef mangledName,
   return OpaqueTypeArchetypeType::get(opaqueDecl, interfaceType, subs);
 }
 
+Type swift::reduceDeclaredEffectsRow(ArrayRef<Type> effectTypes, bool sawNever,
+                                     SourceLoc effectsLoc, ASTContext &ctx) {
+  SmallVector<Type, 2> types(effectTypes.begin(), effectTypes.end());
+  if (sawNever && !types.empty()) {
+    ctx.Diags.diagnose(effectsLoc,
+                       diag::context_effect_never_with_other_types);
+    types.clear();
+  }
+
+  if (types.size() == 1)
+    return types[0];
+  if (types.size() > 1)
+    return ProtocolCompositionType::get(ctx, types, /*Inverses=*/{},
+                                        /*HasExplicitAnyObject=*/false);
+  if (sawNever)
+    return ctx.getNeverType();
+  return Type();
+}
+
 NeverNullType TypeResolver::resolveASTFunctionType(
     FunctionTypeRepr *repr, TypeResolutionOptions parentOptions,
     TypeAttrSet *attrs) {
@@ -4782,21 +4801,8 @@ NeverNullType TypeResolver::resolveASTFunctionType(
         effectTypes.push_back(memberTy);
     }
 
-    if (sawNever && !effectTypes.empty()) {
-      diagnose(repr->getEffectsLoc(),
-               diag::context_effect_never_with_other_types);
-      effectTypes.clear();
-    }
-
-    if (effectTypes.size() == 1) {
-      declaredEffects = effectTypes[0];
-    } else if (effectTypes.size() > 1) {
-      declaredEffects = ProtocolCompositionType::get(
-          ctx, effectTypes, /*Inverses=*/{},
-          /*HasExplicitAnyObject=*/false);
-    } else if (sawNever) {
-      declaredEffects = ctx.getNeverType();
-    }
+    declaredEffects = reduceDeclaredEffectsRow(effectTypes, sawNever,
+                                               repr->getEffectsLoc(), ctx);
   }
 
   // TODO: maybe make this the place that claims @escaping.

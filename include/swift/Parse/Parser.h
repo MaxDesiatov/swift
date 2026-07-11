@@ -1965,6 +1965,8 @@ public:
           SourceLoc &asyncLoc,
           SourceLoc &throwsLoc,
           TypeExpr *&thrownType,
+          SourceLoc &effectsLoc,
+          ArrayRef<TypeRepr *> &declaredEffects,
           SourceLoc &arrowLoc,
           TypeExpr *&explicitResultType,
           SourceLoc &inLoc);

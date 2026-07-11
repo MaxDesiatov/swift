@@ -2095,9 +2095,43 @@ namespace {
         extInfo = extInfo.withSendable();
       }
 
-      // Extract performed effects from contextual type.
-      if (auto contextualType =
-              CS.getContextualType(closure, /*forConstraint=*/false)) {
+      // A written but malformed clause (e.g. effects(NoSuchType)) must not fall
+      // back to contextual inference and mask the error, so the fallback keys on
+      // the presence of a clause, not on whether the row resolved to non-null.
+      if (closure->hasExplicitDeclaredEffects()) {
+        SmallVector<Type, 2> effectTypes;
+        bool sawNever = false;
+        auto effectsLocator = CS.getConstraintLocator(closure);
+        for (auto *effectRepr : closure->getExplicitDeclaredEffectReprs()) {
+          Type ty = resolveTypeReferenceInExpression(
+              effectRepr, TypeResolverContext::None, effectsLocator);
+          if (!ty || ty->hasError() || ty->is<PlaceholderType>())
+            continue;
+          if (ty->isNever()) {
+            sawNever = true;
+            continue;
+          }
+
+          // No Effect-conformance diagnostics here: CSGen is speculative, so a
+          // non-Effect member is left for the wrapper's `E: Effect` requirement
+          // to catch once the row binds.
+          Type constraintTy = ty;
+          if (auto *et = ty->getAs<ExistentialType>())
+            constraintTy = et->getConstraintType();
+          if (auto *comp = constraintTy->getAs<ProtocolCompositionType>()) {
+            for (auto member : comp->getMembers())
+              effectTypes.push_back(member);
+          } else {
+            effectTypes.push_back(constraintTy);
+          }
+        }
+
+        if (Type row = reduceDeclaredEffectsRow(effectTypes, sawNever,
+                                                closure->getEffectsLoc(),
+                                                CS.getASTContext()))
+          extInfo = extInfo.withDeclaredEffects(row);
+      } else if (auto contextualType =
+                     CS.getContextualType(closure, /*forConstraint=*/false)) {
         if (auto fnType = contextualType->getAs<AnyFunctionType>()) {
           if (fnType->hasDeclaredEffects()) {
             extInfo =

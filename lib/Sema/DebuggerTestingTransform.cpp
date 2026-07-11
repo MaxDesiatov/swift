@@ -271,6 +271,7 @@ private:
     auto *Closure = new (Ctx)
         ClosureExpr(DeclAttributes(), SourceRange(), nullptr, Params,
                     SourceLoc(), SourceLoc(), /*thrownType=*/nullptr,
+                    /*effectsLoc=*/SourceLoc(), /*declaredEffects=*/{},
                     SourceLoc(), SourceLoc(), nullptr,
                     getCurrentDeclContext());
     Closure->setImplicit(true);

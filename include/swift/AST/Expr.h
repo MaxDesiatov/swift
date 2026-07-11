@@ -4317,6 +4317,12 @@ private:
   /// The explicitly-specified thrown type.
   TypeExpr *ThrownType;
 
+  /// The location of the "effects" contextual keyword, if present.
+  SourceLoc EffectsLoc;
+
+  /// The explicitly-specified declared effects row.
+  ArrayRef<TypeRepr *> DeclaredEffects;
+
   /// The explicitly-specified result type.
   llvm::PointerIntPair<TypeExpr *, 2, BodyState> ExplicitResultTypeAndBodyState;
 
@@ -4337,14 +4343,16 @@ public:
   ClosureExpr(const DeclAttributes &attributes,
               SourceRange bracketRange, VarDecl *capturedSelfDecl,
               ParameterList *params, SourceLoc asyncLoc, SourceLoc throwsLoc,
-              TypeExpr *thrownType, SourceLoc arrowLoc, SourceLoc inLoc,
-              TypeExpr *explicitResultType, DeclContext *parent)
+              TypeExpr *thrownType, SourceLoc effectsLoc,
+              ArrayRef<TypeRepr *> declaredEffects, SourceLoc arrowLoc,
+              SourceLoc inLoc, TypeExpr *explicitResultType, DeclContext *parent)
     : AbstractClosureExpr(ExprKind::Closure, Type(), /*Implicit=*/false,
                           parent),
       Attributes(attributes), BracketRange(bracketRange),
       CapturedSelfDecl(capturedSelfDecl),
       AsyncLoc(asyncLoc), ThrowsLoc(throwsLoc), ArrowLoc(arrowLoc),
-      InLoc(inLoc), ThrownType(thrownType),
+      InLoc(inLoc), ThrownType(thrownType), EffectsLoc(effectsLoc),
+      DeclaredEffects(declaredEffects),
       ExplicitResultTypeAndBodyState(explicitResultType, BodyState::Parsed),
       Body(nullptr) {
     setParameterList(params);
@@ -4520,6 +4528,17 @@ public:
       return ThrownType->getTypeRepr();
 
     return nullptr;
+  }
+
+  /// Whether the closure has an explicitly-written `effects(...)` clause.
+  bool hasExplicitDeclaredEffects() const { return EffectsLoc.isValid(); }
+
+  /// Retrieve the location of the `effects` keyword, if present.
+  SourceLoc getEffectsLoc() const { return EffectsLoc; }
+
+  /// Retrieve the type representations of the explicitly-written effects row.
+  ArrayRef<TypeRepr *> getExplicitDeclaredEffectReprs() const {
+    return DeclaredEffects;
   }
 
   Type getExplicitResultType() const {

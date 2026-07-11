@@ -4281,6 +4281,10 @@ public:
       printRec(E->getParameters(), Label::optional("params"),
                &E->getASTContext());
     }
+    if (E->hasExplicitDeclaredEffects()) {
+      printRecRange(E->getExplicitDeclaredEffectReprs(),
+                    Label::always("declared_effects"));
+    }
     printRec(E->getBody(), &E->getASTContext(), Label::optional("body"));
 
     printFoot();
