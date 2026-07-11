@@ -22,13 +22,13 @@ func badCaller() effects(Never) -> Void {
 // not if E mis-bound to the caller's FileSystem row (which would be available).
 func fsBadName() effects(FileSystem) -> Void {
   forward(nwFn)
-  // expected-error@-1 {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  // expected-error@-1 {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // A composed inferred row partly unavailable: Network missing in a FileSystem context.
 func abBadCaller() effects(FileSystem) -> Void {
   forward(abFn)
-  // expected-error@-1 {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  // expected-error@-1 {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // A function-typed value/parameter argument is enforced like a named-function argument.
@@ -40,7 +40,7 @@ func viaLetBad() effects(Never) -> Void {
 
 func viaParamComposed(_ g: () effects(FileSystem & Network) -> Void) effects(FileSystem) -> Void {
   forward(g)
-  // expected-error@-1 {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  // expected-error@-1 {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // The inferred row is enforced against a do...handle narrowing scope too.
@@ -50,5 +50,5 @@ func okNarrow() {
 
 func badNarrow() {
   do { forward(nwFn) } handle MockFS() as FileSystem
-  // expected-error@-1 {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  // expected-error@-1 {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }

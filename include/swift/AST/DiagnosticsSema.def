@@ -5845,8 +5845,8 @@ ERROR(typed_throw_in_objc_forbidden,none,
 // MARK: Context Effects
 //------------------------------------------------------------------------------
 ERROR(context_effect_not_allowed,none,
-      "call to function that effects %0 is not allowed; "
-      "enclosing function only effects %1", (StringRef, StringRef))
+      "call to function that has effects %0 is not allowed; "
+      "enclosing function only has effects %1", (StringRef, StringRef))
 
 ERROR(context_effect_in_effects_never,none,
       "call to function that has effects is not allowed in a "

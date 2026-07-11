@@ -35,5 +35,5 @@ func anyRowArg() {
 // protocol; the call is still correctly rejected, but the row is named 'Effect'.
 func multiParamJoin() effects(FileSystem) -> Void {
   forward2(fsFn, nwFn)
-  // expected-error@-1 {{call to function that effects 'Effect' is not allowed; enclosing function only effects 'FileSystem'}}
+  // expected-error@-1 {{call to function that has effects 'Effect' is not allowed; enclosing function only has effects 'FileSystem'}}
 }

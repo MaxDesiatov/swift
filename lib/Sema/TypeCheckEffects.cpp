@@ -5065,6 +5065,22 @@ extractEffectProtocolsImpl(Type declaredEffects) {
   return result;
 }
 
+/// The abstract counterpart of extractEffectProtocolsImpl: the effect-variable
+/// (archetype / type parameter) member of a performed-effects row. An abstract
+/// row is always a single effect variable (a composition mixing an archetype
+/// with a protocol is rejected at declaration), so this yields at most one.
+static SmallVector<Type, 2>
+extractEffectVars(Type declaredEffects) {
+  SmallVector<Type, 2> result;
+  if (!declaredEffects || declaredEffects->isNever())
+    return result;
+  if (auto *et = declaredEffects->getAs<ExistentialType>())
+    declaredEffects = et->getConstraintType();
+  if (isEffectVariable(declaredEffects))
+    result.push_back(declaredEffects);
+  return result;
+}
+
 /// Resolve the types in a function's effects clause to ProtocolDecl values.
 /// Returns std::nullopt if the function has no effects clause (unrestricted).
 /// Returns an empty vector for effects(Never).
@@ -5165,13 +5181,20 @@ resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
   return result;
 }
 
-/// Format a set of performed effects as a comma-separated, quoted string.
-static std::string formatEffectSet(ArrayRef<ProtocolDecl *> effects) {
+/// Format a set of performed effects (concrete protocols and abstract effect
+/// variables) as a comma-separated, quoted string.
+static std::string formatEffects(ArrayRef<ProtocolDecl *> protos,
+                                 ArrayRef<Type> vars) {
   std::string result;
   llvm::raw_string_ostream os(result);
-  for (unsigned i = 0; i < effects.size(); ++i) {
-    if (i > 0) os << ", ";
-    os << "'" << effects[i]->getName() << "'";
+  bool first = true;
+  for (auto *proto : protos) {
+    os << (first ? "" : ", ") << "'" << proto->getName() << "'";
+    first = false;
+  }
+  for (Type var : vars) {
+    os << (first ? "" : ", ") << "'" << var->getString() << "'";
+    first = false;
   }
   return result;
 }
@@ -5186,6 +5209,13 @@ class CheckContextEffectsCoverage
   ASTContext &Ctx;
   std::optional<SmallVector<ProtocolDecl *, 4>> CallerEffects;
   llvm::SmallPtrSet<ProtocolDecl *, 4> CallerEffectSet;
+
+  /// The caller's declared abstract effect rows (effect-variable archetypes),
+  /// parallel to CallerEffectSet which holds only concrete protocols. Compared
+  /// by type identity, and re-scoped alongside CallerEffectSet for nested
+  /// closure and do-handle bodies.
+  SmallVector<Type, 2> CallerEffectVars;
+
   llvm::DenseMap<AbstractFunctionDecl *,
                  std::optional<SmallVector<ProtocolDecl *, 4>>> ResolvedCache;
 
@@ -5214,11 +5244,23 @@ class CheckContextEffectsCoverage
     return false;
   }
 
+  /// An abstract effect is available when it is identical to one of the
+  /// caller's declared abstract effects. Reached only past the unrestricted
+  /// early-out, so (like isEffectAvailable) it needs no unrestricted guard.
+  bool isEffectVarAvailable(Type var) const {
+    for (Type callerVar : CallerEffectVars)
+      if (callerVar->isEqual(var))
+        return true;
+    return false;
+  }
+
 public:
   CheckContextEffectsCoverage(
       ASTContext &ctx,
-      std::optional<SmallVector<ProtocolDecl *, 4>> callerEffects)
-      : Ctx(ctx), CallerEffects(std::move(callerEffects)) {
+      std::optional<SmallVector<ProtocolDecl *, 4>> callerEffects,
+      SmallVector<Type, 2> callerEffectVars = {})
+      : Ctx(ctx), CallerEffects(std::move(callerEffects)),
+        CallerEffectVars(std::move(callerEffectVars)) {
     if (CallerEffects)
       CallerEffectSet.insert(CallerEffects->begin(), CallerEffects->end());
   }
@@ -5268,10 +5310,12 @@ public:
 
     auto savedCallerEffects = std::move(CallerEffects);
     auto savedCallerEffectSet = std::move(CallerEffectSet);
+    auto savedCallerEffectVars = std::move(CallerEffectVars);
     auto savedNarrowingScope = std::move(NarrowingScope);
     SWIFT_DEFER {
       CallerEffects = std::move(savedCallerEffects);
       CallerEffectSet = std::move(savedCallerEffectSet);
+      CallerEffectVars = std::move(savedCallerEffectVars);
       NarrowingScope = std::move(savedNarrowingScope);
     };
 
@@ -5280,6 +5324,7 @@ public:
     CallerEffectSet.clear();
     NarrowingScope.clear();
     CallerEffectSet.insert(CallerEffects->begin(), CallerEffects->end());
+    CallerEffectVars = extractEffectVars(fnTy->getDeclaredEffects());
 
     if (auto *body = E->getBody())
       body->walk(*this);
@@ -5345,16 +5390,21 @@ public:
       // Save current state — the effects clause creates an isolated context.
       auto savedCallerEffects = std::move(CallerEffects);
       auto savedCallerEffectSet = std::move(CallerEffectSet);
+      auto savedCallerEffectVars = std::move(CallerEffectVars);
       auto savedNarrowingScope = std::move(NarrowingScope);
       SWIFT_DEFER {
         CallerEffects = std::move(savedCallerEffects);
         CallerEffectSet = std::move(savedCallerEffectSet);
+        CallerEffectVars = std::move(savedCallerEffectVars);
         NarrowingScope = std::move(savedNarrowingScope);
       };
 
-      // Set CallerEffects to exactly the declared effects types.
+      // Set CallerEffects to exactly the declared effects types. A do-effects
+      // clause admits only concrete protocols, so no abstract effect is
+      // available in the body.
       CallerEffects.emplace();
       CallerEffectSet.clear();
+      CallerEffectVars.clear();
       NarrowingScope.clear();
 
       for (auto &typeLoc : S->getEffectsTypes()) {
@@ -5429,8 +5479,10 @@ public:
   /// Emit a diagnostic for missing effect protocols at the given location.
   void diagnoseMissingEffects(SourceLoc loc,
                               ArrayRef<ProtocolDecl *> missing,
-                              AbstractFunctionDecl *calleeDecl = nullptr) {
-    if (CallerEffects && CallerEffects->empty() && NarrowingScope.empty()) {
+                              AbstractFunctionDecl *calleeDecl = nullptr,
+                              ArrayRef<Type> missingVars = {}) {
+    if (CallerEffects && CallerEffects->empty() && CallerEffectVars.empty() &&
+        NarrowingScope.empty()) {
       Ctx.Diags.diagnose(loc, diag::context_effect_in_effects_never);
     } else {
       SmallVector<ProtocolDecl *, 4> available;
@@ -5439,9 +5491,10 @@ public:
       for (auto &scope : NarrowingScope)
         for (auto *p : scope)
           available.push_back(p);
-      auto missingStr = formatEffectSet(missing);
-      auto availableStr = available.empty()
-          ? std::string("none") : formatEffectSet(available);
+      auto missingStr = formatEffects(missing, missingVars);
+      auto availableStr = (available.empty() && CallerEffectVars.empty())
+          ? std::string("none")
+          : formatEffects(available, CallerEffectVars);
       Ctx.Diags.diagnose(loc, diag::context_effect_not_allowed,
                          StringRef(missingStr), StringRef(availableStr));
     }
@@ -5538,7 +5591,8 @@ public:
     }
 
     auto calleeEffects = extractEffectProtocolsImpl(fnType->getDeclaredEffects());
-    if (calleeEffects.empty())
+    auto calleeVars = extractEffectVars(fnType->getDeclaredEffects());
+    if (calleeEffects.empty() && calleeVars.empty())
       return ShouldRecurse;
 
     SmallVector<ProtocolDecl *, 4> missing;
@@ -5547,10 +5601,17 @@ public:
         missing.push_back(calleeEffect);
     }
 
-    if (missing.empty())
+    SmallVector<Type, 2> missingVars;
+    for (Type calleeVar : calleeVars) {
+      if (!isEffectVarAvailable(calleeVar))
+        missingVars.push_back(calleeVar);
+    }
+
+    if (missing.empty() && missingVars.empty())
       return ShouldRecurse;
 
-    diagnoseMissingEffects(E->getLoc(), missing);
+    diagnoseMissingEffects(E->getLoc(), missing, /*calleeDecl=*/nullptr,
+                           missingVars);
 
     return ShouldRecurse;
   }
@@ -5607,6 +5668,14 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
         ? resolveDeclaredEffects(fn, ctx)
         : std::nullopt;
 
+    // resolveDeclaredEffects collects only concrete protocols; the caller's
+    // abstract rows (the E in effects(E)) are read off the interface row and
+    // mapped into the function's generic environment so they compare by
+    // identity with a callee's substituted (contextual) row.
+    SmallVector<Type, 2> callerEffectVars;
+    if (Type row = fn->getResolvedDeclaredEffectsType())
+      callerEffectVars = extractEffectVars(fn->mapTypeIntoEnvironment(row));
+
     // Validate async/throws compatibility with effects(Never). A variable row
     // (effect generic) also resolves to an empty set but is not the Never bottom.
     if (callerEffects && callerEffects->empty() &&
@@ -5619,7 +5688,8 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
                            diag::context_effect_untyped_throws_effects_never);
     }
 
-    CheckContextEffectsCoverage contextChecker(ctx, std::move(callerEffects));
+    CheckContextEffectsCoverage contextChecker(ctx, std::move(callerEffects),
+                                               std::move(callerEffectVars));
     if (auto body = fn->getBody())
       body->walk(contextChecker);
   }

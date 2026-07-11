@@ -1326,12 +1326,17 @@ Type AbstractFunctionDecl::getThrownInterfaceType() const {
 }
 
 Type AbstractFunctionDecl::getResolvedDeclaredEffectsType() const {
+  // Read the row off the decl's own value signature, not the result: an effect
+  // row in the result type belongs to the returned value, not this decl (a
+  // getter for a stored `() effects(E) -> Void` property performs no effects
+  // itself). Mirrors getEffectiveThrownErrorType.
   Type ty = getInterfaceType();
-  while (auto *fnTy = ty->getAs<AnyFunctionType>()) {
+  if (hasImplicitSelfDecl())
+    if (auto *fnTy = ty->getAs<AnyFunctionType>())
+      ty = fnTy->getResult();
+  if (auto *fnTy = ty->getAs<AnyFunctionType>())
     if (fnTy->hasDeclaredEffects())
       return fnTy->getDeclaredEffects();
-    ty = fnTy->getResult();
-  }
   return Type();
 }
 

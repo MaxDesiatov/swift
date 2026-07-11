@@ -32,7 +32,7 @@ func test2b() effects(FileSystem & Network) {
 
 // ERROR: missing Network
 func test3() effects(FileSystem) {
-  fsBoth() // expected-error {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  fsBoth() // expected-error {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // ERROR: effects(Never) calling effects(FileSystem)
@@ -69,7 +69,7 @@ protocol Logging: Effect {}
 func needsThree() effects(FileSystem & Network & Logging) {} // expected-note {{declared here}}
 func testMultiMissing() effects(FileSystem) {
   needsThree()
-  // expected-error @-1 {{call to function that effects 'Logging', 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  // expected-error @-1 {{call to function that has effects 'Logging', 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // ERROR: non-Effect protocol in effects clause
@@ -88,15 +88,15 @@ func testStruct() effects(MyStruct) {}
 func testRepeatedCalls() effects(FileSystem) {
   fsOnly()    // OK
   fsOnly()    // OK — exercises cache
-  fsBoth()    // expected-error {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
-  fsBoth()    // expected-error {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  fsBoth()    // expected-error {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
+  fsBoth()    // expected-error {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // Autoclosure should be checked in caller's context
 func takeAutoclosure(_ x: @autoclosure () -> Void) effects(FileSystem) {}
 func testAutoclosure() effects(FileSystem) {
   takeAutoclosure(netOnly())
-  // expected-error @-1 {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  // expected-error @-1 {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // --- Additional coverage tests ---
@@ -110,7 +110,7 @@ func testInstanceMethod(_ s: S) effects(FileSystem) {
   s.method()  // OK
 }
 func testStaticMethod() effects(FileSystem) {
-  S.staticMethod()  // expected-error {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  S.staticMethod()  // expected-error {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // Protocol requirements
@@ -118,7 +118,7 @@ protocol Performable {
   func doWork() effects(Network) // expected-note {{declared here}}
 }
 func testProtocolReq<T: Performable>(_ t: T) effects(FileSystem) {
-  t.doWork()  // expected-error {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  t.doWork()  // expected-error {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // Closure boundary — unannotated closures are restricted in restricted contexts
@@ -132,7 +132,7 @@ func testNestedFn() effects(FileSystem) {
   func inner() effects(FileSystem & Network) { // expected-note {{declared here}}
     fsBoth()  // OK
   }
-  inner()  // expected-error {{call to function that effects 'Network' is not allowed; enclosing function only effects 'FileSystem'}}
+  inner()  // expected-error {{call to function that has effects 'Network' is not allowed; enclosing function only has effects 'FileSystem'}}
 }
 
 // Recursive self-call

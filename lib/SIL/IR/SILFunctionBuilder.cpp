@@ -62,6 +62,14 @@ perfConstraintsForDeclaredEffects(AbstractFunctionDecl *afd, ASTContext &ctx) {
   if (effects->isNever())
     return PerformanceConstraints::NoLocks;
 
+  // A polymorphic effects(E) row (type parameter / archetype) can bind to Never, so the
+  // function's own body must satisfy the strongest handler-less constraint. Mirrors
+  // isEffectVariable in lib/Sema/TypeCheckEffects.cpp. The forwarded closure-parameter call is
+  // trusted separately by PerformanceDiagnostics (already checked at the call site).
+  if (ctx.LangOpts.hasFeature(Feature::ContextEffects) &&
+      (effects->isTypeParameter() || effects->is<ArchetypeType>()))
+    return PerformanceConstraints::NoLocks;
+
   if (auto *lockingProto = ctx.getProtocol(KnownProtocolKind::Locking)) {
     Type constraint = effects;
     if (auto *et = constraint->getAs<ExistentialType>())
