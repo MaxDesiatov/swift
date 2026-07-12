@@ -41,9 +41,11 @@ set(SWIFT_BUILD_DYNAMIC_SDK_OVERLAY OFF CACHE BOOL "")
 set(SWIFT_INCLUDE_TESTS OFF CACHE BOOL "")
 set(SWIFT_INCLUDE_DOCS OFF CACHE BOOL "")
 
-# Emscripten link flags: grow memory up to 4 GiB (wasm32 max), access the host
-# filesystem directly (NODERAWFS), and emit DWARF into a sidecar so the main
-# module stays under the wasm engine's per-module size limit.
+# Link the frontend as a MODULARIZE factory (createSwiftFrontend) over MEMFS,
+# matching EmscriptenHostLLVM.cmake so it loads under both Node and the browser:
+# grow memory up to 4 GiB (wasm32 max), keep the runtime alive past main, expose
+# FS/callMain to the host, and emit DWARF into a sidecar so the main module stays
+# under the wasm engine's per-module size limit.
 set(CMAKE_EXE_LINKER_FLAGS
-    "-sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4294967296 -sSTACK_SIZE=8388608 -sINITIAL_MEMORY=134217728 -sNODERAWFS=1 -sENVIRONMENT=node -gseparate-dwarf"
+    "-sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4294967296 -sSTACK_SIZE=8388608 -sINITIAL_MEMORY=134217728 -sMODULARIZE=1 -sEXPORT_NAME=createSwiftFrontend -sFORCE_FILESYSTEM=1 -sEXIT_RUNTIME=0 -sENVIRONMENT=node,web -sEXPORTED_RUNTIME_METHODS=FS,callMain -gseparate-dwarf"
     CACHE STRING "")
