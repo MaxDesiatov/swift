@@ -2947,11 +2947,7 @@ matchDeclaredEffects(ConstraintSystem &cs, FunctionType *func1,
   // A non-concrete row (type parameter / archetype / type variable) is not a
   // protocol set. Bind it against the other row so the solver infers the effect
   // parameter, as matchFunctionThrowing does for a variable thrown error.
-  auto isVariable = [](Type row) {
-    return row->isTypeParameter() || row->is<ArchetypeType>() ||
-           row->hasTypeVariable();
-  };
-  if (isVariable(row1) || isVariable(row2)) {
+  if (isVariableEffectRow(row1) || isVariableEffectRow(row2)) {
     ConstraintKind subKind =
         (kind < ConstraintKind::Subtype) ? ConstraintKind::Equal
                                          : ConstraintKind::Subtype;
@@ -12630,6 +12626,24 @@ bool ConstraintSystem::resolveClosure(TypeVariableType *typeVar,
   if (auto contextualFnType = contextualType->getAs<FunctionType>()) {
     if (contextualFnType->hasExtInfo() && contextualFnType->hasSendingResult())
       closureExtInfo = closureExtInfo.withSendingResult();
+  }
+
+  // A clause-less closure passed where a variable effects row ($E) is expected
+  // defaults E to effects(Never), the strictest ceiling, but only when nothing
+  // else determines it. A Defaultable constraint (not a binding) lets a sibling
+  // argument or the result context still infer E; Never applies only when E is
+  // otherwise unconstrained, turning an inference failure into a precise
+  // body-check diagnostic. Only a closure literal reaches here.
+  if (!closure->hasExplicitDeclaredEffects() &&
+      !closureExtInfo.hasDeclaredEffects()) {
+    if (auto contextualFnType = contextualType->getAs<FunctionType>()) {
+      if (Type row = contextualFnType->getDeclaredEffects()) {
+        if (row->isTypeVariableOrMember())
+          addConstraint(ConstraintKind::Defaultable, row,
+                        getASTContext().getNeverType(),
+                        getConstraintLocator(closure));
+      }
+    }
   }
 
   // Isolated parameters override any other kind of isolation we might infer.

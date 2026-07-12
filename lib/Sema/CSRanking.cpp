@@ -16,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 #include "TypeChecker.h"
 #include "Relation.h"
+#include "TypeCheckEffects.h"
 #include "swift/AST/ConformanceLookup.h"
 #include "swift/AST/GenericSignature.h"
 #include "swift/AST/ProtocolConformance.h"
@@ -741,18 +742,37 @@ bool CompareDeclSpecializationRequest::evaluate(
     break;
   }
 
-  // throws vs. typed throws. We are calling decl2 by passing parameters from
-  // decl1 as arguments, decl1 is affectively a context for decl2 call, let's
-  // see if that's well-formed in presence of typed throws.
   if (isa<AbstractFunctionDecl>(decl1) && isa<AbstractFunctionDecl>(decl2)) {
-    auto thrownError1 =
-        openedType1->castTo<FunctionType>()->getEffectiveThrownErrorType();
-    auto thrownError2 =
-        openedType2->castTo<FunctionType>()->getEffectiveThrownErrorType();
+    auto *funcTy1 = openedType1->castTo<FunctionType>();
+    auto *funcTy2 = openedType2->castTo<FunctionType>();
 
+    // throws vs. typed throws. We are calling decl2 by passing parameters from
+    // decl1 as arguments, decl1 is affectively a context for decl2 call, let's
+    // see if that's well-formed in presence of typed throws.
+    auto thrownError1 = funcTy1->getEffectiveThrownErrorType();
+    auto thrownError2 = funcTy2->getEffectiveThrownErrorType();
     if (thrownError1 && thrownError2) {
       cs.addConstraint(ConstraintKind::Subtype, *thrownError2, *thrownError1,
                        locator);
+    }
+
+    // decl1 is as specialized as decl2 when its effect row is a subtype (a
+    // tighter ceiling); an absent row is the top, so a present row outranks it.
+    // A variable row's generic parameter is always also used in a parameter or
+    // result (a bare effects(E) is rejected as unreferenced), so such overloads
+    // are already ranked there; skip them here.
+    Type effects1 = funcTy1->getDeclaredEffects();
+    Type effects2 = funcTy2->getDeclaredEffects();
+    if (!effects1 && effects2) {
+      knownNonSubtype = true;
+    } else if (effects1 && effects2 && !isVariableEffectRow(effects1) &&
+               !isVariableEffectRow(effects2)) {
+      auto set1 = extractEffectProtocols(effects1);
+      auto set2 = extractEffectProtocols(effects2);
+      if (!llvm::all_of(set1, [&](ProtocolDecl *p) {
+            return llvm::is_contained(set2, p);
+          }))
+        knownNonSubtype = true;
     }
   }
 

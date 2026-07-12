@@ -62,6 +62,13 @@ bool isRethrowLikeTypedThrows(AbstractFunctionDecl *func);
 /// For Never, returns empty.
 SmallVector<ProtocolDecl *, 4> extractEffectProtocols(Type declaredEffects);
 
+/// Whether a declared-effects row is a non-concrete variable (type parameter,
+/// archetype, or type variable) to be bound rather than compared as a protocol
+/// set. Covers both solve-time (type-variable) and post-solution (type-parameter
+/// / archetype) callers; the type-variable case is inert post-solution, where no
+/// type variables survive into a resolved decl interface type.
+bool isVariableEffectRow(Type declaredEffects);
+
 }
 
 #endif // SWIFT_SEMA_TYPECHECKEFFECTS_H

@@ -5033,13 +5033,6 @@ static ProtocolDecl *extractProtocolDecl(Type type) {
   return nullptr;
 }
 
-// Effect variable: a type parameter or archetype in effects position, not a concrete row.
-static bool isEffectVariable(Type declaredEffects) {
-  return declaredEffects &&
-         (declaredEffects->isTypeParameter() ||
-          declaredEffects->is<ArchetypeType>());
-}
-
 /// Decompose a performed-effects type into individual protocol decls.
 /// For a single protocol type, returns that protocol.
 /// For a ProtocolCompositionType, returns each member protocol.
@@ -5076,7 +5069,7 @@ extractEffectVars(Type declaredEffects) {
     return result;
   if (auto *et = declaredEffects->getAs<ExistentialType>())
     declaredEffects = et->getConstraintType();
-  if (isEffectVariable(declaredEffects))
+  if (isVariableEffectRow(declaredEffects))
     result.push_back(declaredEffects);
   return result;
 }
@@ -5138,7 +5131,7 @@ resolveDeclaredEffects(AbstractFunctionDecl *fn, ASTContext &ctx) {
     for (auto memberTy : memberTypes) {
       // Variable row (effect generic) has no concrete protocols; skip it rather
       // than diagnosing it as a non-Effect type.
-      if (isEffectVariable(memberTy))
+      if (isVariableEffectRow(memberTy))
         continue;
 
       // Extract the protocol decl from the member type.
@@ -5530,7 +5523,7 @@ public:
     // A generic effect parameter carries no concrete protocols in the decl's
     // interface row; its value is only known after substitution. Read the
     // inferred row off the applied callee type instead.
-    if (isEffectVariable(calleeDecl->getResolvedDeclaredEffectsType()))
+    if (isVariableEffectRow(calleeDecl->getResolvedDeclaredEffectsType()))
       return checkApplyFunctionType(E);
 
     // Resolve the callee's row from either its parse-time clause or, for a
@@ -5624,6 +5617,13 @@ swift::extractEffectProtocols(Type declaredEffects) {
   return extractEffectProtocolsImpl(declaredEffects);
 }
 
+bool swift::isVariableEffectRow(Type declaredEffects) {
+  return declaredEffects &&
+         (declaredEffects->isTypeParameter() ||
+          declaredEffects->is<ArchetypeType>() ||
+          declaredEffects->hasTypeVariable());
+}
+
 void TypeChecker::checkTopLevelEffects(TopLevelCodeDecl *code) {
   auto &ctx = code->getDeclContext()->getASTContext();
   CheckEffectsCoverage checker(ctx, Context::forTopLevelCode(code));
@@ -5679,7 +5679,7 @@ void TypeChecker::checkFunctionEffects(AbstractFunctionDecl *fn) {
     // Validate async/throws compatibility with effects(Never). A variable row
     // (effect generic) also resolves to an empty set but is not the Never bottom.
     if (callerEffects && callerEffects->empty() &&
-        !isEffectVariable(fn->getResolvedDeclaredEffectsType())) {
+        !isVariableEffectRow(fn->getResolvedDeclaredEffectsType())) {
       if (fn->hasAsync())
         ctx.Diags.diagnose(fn->getAsyncLoc(),
                            diag::context_effect_async_effects_never);
