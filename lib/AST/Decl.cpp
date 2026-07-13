@@ -10925,9 +10925,21 @@ SourceRange AbstractFunctionDecl::getSignatureSourceRange() const {
   if (auto *typeRepr = getThrownTypeRepr())
     thrownTypeRange = typeRepr->getSourceRange();
 
-  // name(parameter list...) async throws(E)
+  // Fold in the declared-effects clause. With no result type it is the final
+  // signature token; leaving it out of the range puts a generic parameter named
+  // only in effects(E) outside the decl's ASTScope, so lookup for it fails.
+  SourceRange effectsRange;
+  if (hasEffects()) {
+    effectsRange = getEffectsLoc();
+    for (auto &typeLoc : getDeclaredEffects())
+      if (auto *typeRepr = typeLoc.getTypeRepr())
+        effectsRange =
+            SourceRange::combine(effectsRange, typeRepr->getSourceRange());
+  }
+
+  // name(parameter list...) effects(E) async throws(E)
   return SourceRange::combine(getParameterListSourceRange(), getAsyncLoc(),
-                              getThrowsLoc(), thrownTypeRange);
+                              getThrowsLoc(), thrownTypeRange, effectsRange);
 }
 
 SourceRange AbstractFunctionDecl::getParameterListSourceRange() const {
