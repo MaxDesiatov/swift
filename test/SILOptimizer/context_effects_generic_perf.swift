@@ -47,3 +47,37 @@ func genericSink<T>(_ x: T) effects(Never) {}
 func forwardThroughNamed<T, E: Effect>(_ x: T, _ body: () effects(E) -> Void) effects(E) {
   genericSink(x) // expected-error {{generic function calls can cause metadata allocation or locks}}
 }
+
+// The with- family's real (throwing) shape. `try body()` needs a local error slot, lowering to
+// `alloc_stack $E` + `copy_addr [take] $*E`, both reading E's passed-in metadata. Those bare-archetype
+// reads are non-hazardous, so the forwarder is clean under NoLocks, matching cleanForwardResult
+// (which returns to @out and needs no error slot).
+func cleanForwardEffectThrows<Eff: Effect, E: Error, Result>(
+  _ body: () effects(Eff) throws(E) -> Result
+) effects(Eff) throws(E) -> Result {
+  return try body()
+}
+
+// The clearing holds under NoAllocation too, not only NoLocks (the metadata branch fires under both):
+// a @_noAllocation typed-throws forwarder's error-slot metadata reads are likewise non-hazardous.
+@_noAllocation
+func cleanForwardNoAllocation<E: Error>(_ body: () throws(E) -> Int) throws(E) -> Int {
+  return try body()
+}
+
+// The value-witness-executing paths are not relaxed: duplicating a generic value invokes its copy
+// witness, which may allocate for COW / out-of-line representations, so a @_noAllocation forwarder
+// copying an archetype still diagnoses.
+@_noAllocation
+func archetypeCopyStillDiagnosed<T>(_ x: T) -> (T, T) {
+  return (x, x) // expected-error {{Using type 'T' can cause metadata allocation or locks}}
+}
+
+// A bound-generic thrown error hits the same error-slot `alloc_stack` / `copy_addr [take][init]` as
+// cleanForwardEffectThrows, but Wrap<T> is not a bare archetype: its metadata may be instantiated
+// (swift_getGenericMetadata), so it stays diagnosed. Pins the relaxation's by-kind boundary.
+enum Wrap<T>: Error { case a(T) }
+@_noAllocation
+func boundGenericThrowStillDiagnosed<T>(_ body: () throws(Wrap<T>) -> Int) throws(Wrap<T>) -> Int {
+  return try body() // expected-error {{Using type 'Wrap<T>' can cause metadata allocation or locks}}
+}

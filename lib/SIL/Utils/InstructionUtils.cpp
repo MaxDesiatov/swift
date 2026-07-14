@@ -806,6 +806,10 @@ RuntimeEffect swift::getRuntimeEffect(SILInstruction *inst, SILType &impactType)
   case SILInstructionKind::ProjectBoxInst: {
     SILType allocType = cast<SingleValueInstruction>(inst)->getType();
     if (allocType.hasArchetype() && !allocType.isLoadable(*inst->getFunction())) {
+      // Primary archetype metadata is a passed-in arg: this reads it, unlike a
+      // bound generic whose metadata may be instantiated at runtime.
+      if (allocType.is<PrimaryArchetypeType>())
+        return RuntimeEffect::NoEffect;
       impactType = allocType;
       return RuntimeEffect::MetaData;
     }
@@ -851,8 +855,14 @@ RuntimeEffect swift::getRuntimeEffect(SILInstruction *inst, SILType &impactType)
       return RuntimeEffect::MetaData | RuntimeEffect::Releasing;
     if (!ca->isTakeOfSrc())
       return RuntimeEffect::MetaData | RuntimeEffect::RefCounting;
-    if (ca->getSrc()->getType().hasArchetype())
+    if (ca->getSrc()->getType().hasArchetype()) {
+      // take+init on a primary archetype moves via its passed-in metadata (a
+      // read), matching the concrete take+init below. A bound generic may
+      // instantiate metadata, so keep flagging it.
+      if (ca->getSrc()->getType().is<PrimaryArchetypeType>())
+        return RuntimeEffect::NoEffect;
       return RuntimeEffect::MetaData;
+    }
     return RuntimeEffect::NoEffect;
   }
   case SILInstructionKind::TupleAddrConstructorInst: {
