@@ -2,8 +2,6 @@
 // REQUIRES: optimized_stdlib
 // REQUIRES: swift_feature_ContextEffects
 
-// XFAIL: *
-
 class C {}
 
 func withExtendedLifetime<
@@ -21,8 +19,8 @@ func withExtendedLifetime<
 
 
 func neverCaller(_ c: C) effects(Never) -> C {
-  return withExtendedLifetime(c) { () effects(Never) in
-    return c // expected-error {{this code performs reference counting operations which can cause locking}}
+  return withExtendedLifetime(c) { () effects(Never) in // expected-error {{this code performs reference counting operations which can cause locking}}
+    return c
   }
 }
 
@@ -30,5 +28,5 @@ func neverCaller(_ c: C) effects(Never) -> C {
 func lockingCaller(_ c: C) effects(Locking) -> C {
   return withExtendedLifetime(c) { () effects(Locking) in
     return c
-  }
+  } // expected-error {{ending the lifetime of a value of type 'C' can cause a deallocation}}
 }

@@ -3,7 +3,8 @@
 
 // The concrete effect-row subtyping order in matchFunctionTypes: a function
 // performing fewer effects is a subtype of one performing more. Comparison is by
-// protocol identity (matching the effects walker); refinement is not subtyping.
+// protocol identity or refinement: a refining protocol permits its parent's
+// effects, so effects(Parent) <: effects(Child) when Child: Parent.
 
 protocol FileSystem: Effect { mutating func read() -> String }
 protocol Network: Effect { mutating func fetch() -> String }
@@ -24,11 +25,11 @@ let narrow: () effects(FileSystem) -> Void = both
 // Widening the effect set: OK.
 let widen: () effects(FileSystem & Network) -> Void = fsOnly
 
-// Refinement is not subtyping in the identity-based model; both directions fail.
+// Refinement participates: base row into a refined slot is legal; the reverse
+// is illegal.
 let refDown: () effects(FileSystem) -> Void = rw
 // expected-error@-1 {{invalid conversion of effects 'ReadWrite' to 'FileSystem'}}
 let refUp: () effects(ReadWrite) -> Void = fsOnly
-// expected-error@-1 {{invalid conversion of effects 'FileSystem' to 'ReadWrite'}}
 
 // Concrete row widened to unrestricted (absent = top): OK.
 let toUnrestricted: () -> Void = fsOnly

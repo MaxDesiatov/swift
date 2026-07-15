@@ -616,21 +616,16 @@ checkEffects(AbstractStorageDecl *witness, AbstractStorageDecl *req) {
               getStandinForAccessor(witness, AccessorKind::Get),
               MatchKind::EffectsConflict);
       } else {
-        // Both have effects -- subset check.
+        // The witness's row must be a subtype of the requirement's: it may
+        // perform no more than the requirement permits.
         auto reqProtocols =
             extractEffectProtocols(reqFnTy->getDeclaredEffects());
         auto witnessProtocols =
             extractEffectProtocols(witnessFnTy->getDeclaredEffects());
-        for (auto *wp : witnessProtocols) {
-          bool contained =
-              llvm::any_of(reqProtocols, [&](ProtocolDecl *rp) {
-                return wp == rp || wp->inheritsFrom(rp);
-              });
-          if (!contained)
-            return RequirementMatch(
-                getStandinForAccessor(witness, AccessorKind::Get),
-                MatchKind::EffectsConflict);
-        }
+        if (!effectRowSubtypeOf(witnessProtocols, reqProtocols))
+          return RequirementMatch(
+              getStandinForAccessor(witness, AccessorKind::Get),
+              MatchKind::EffectsConflict);
       }
     }
   }
@@ -1051,21 +1046,14 @@ RequirementMatch swift::matchWitness(
         else
           return RequirementMatch(witness, MatchKind::EffectsConflict);
       } else {
-        // Both have effects -- check that the witness's effect set is a
-        // subset of the requirement's. Each protocol in the witness's set
-        // must equal or inherit from at least one requirement protocol.
+        // The witness's row must be a subtype of the requirement's: it may
+        // perform no more than the requirement permits.
         auto reqProtocols =
             extractEffectProtocols(reqFn->getDeclaredEffects());
         auto witnessProtocols =
             extractEffectProtocols(witnessFn->getDeclaredEffects());
-
-        for (auto *wp : witnessProtocols) {
-          bool contained = llvm::any_of(reqProtocols, [&](ProtocolDecl *rp) {
-            return wp == rp || wp->inheritsFrom(rp);
-          });
-          if (!contained)
-            return RequirementMatch(witness, MatchKind::EffectsConflict);
-        }
+        if (!effectRowSubtypeOf(witnessProtocols, reqProtocols))
+          return RequirementMatch(witness, MatchKind::EffectsConflict);
       }
     }
   }

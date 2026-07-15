@@ -156,3 +156,16 @@ func testDoPerformsMissingHandler() effects(Never) {
     _ = content
   } handle MockFS() as FileSystem
 }
+
+// A scope narrowed to ReadWrite (refines FileSystem) permits calling
+// effects(FileSystem) callees.
+protocol ReadWrite: FileSystem {}
+struct MockRW: ReadWrite {
+  init() effects(Never) {}
+  mutating func readFile(at path: String) -> String { "rw: \(path)" }
+}
+func testNarrowRefinement() effects(Never) {
+  do {
+    _ = readViaFS(path: "test.txt")
+  } handle MockRW() as ReadWrite
+}

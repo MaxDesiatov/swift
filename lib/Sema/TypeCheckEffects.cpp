@@ -5229,10 +5229,13 @@ class CheckContextEffectsCoverage
 
   /// Check if an effect is available via CallerEffectSet or any NarrowingScope.
   bool isEffectAvailable(ProtocolDecl *proto) const {
-    if (CallerEffectSet.count(proto))
+    auto permits = [proto](ProtocolDecl *caller) {
+      return effectPermits(caller, proto);
+    };
+    if (llvm::any_of(CallerEffectSet, permits))
       return true;
     for (auto &scope : NarrowingScope)
-      if (scope.count(proto))
+      if (llvm::any_of(scope, permits))
         return true;
     return false;
   }
@@ -5364,7 +5367,15 @@ public:
 
   // Statement-related stubs -- we just recurse through everything.
   ShouldRecurse_t checkThrow(ThrowStmt *) { return ShouldRecurse; }
-  ShouldRecurse_t checkDefer(DeferStmt *) { return ShouldRecurse; }
+  ShouldRecurse_t checkDefer(DeferStmt *S) {
+    // A defer body runs inline in the enclosing effect context, so walk it
+    // here under the current effects. ShouldNotRecurse skips the DeferStmt
+    // subtree, suppressing the synthesized $defer() call; the inline walk keeps
+    // the body covered (the local $defer func is otherwise unrestricted).
+    if (auto *body = S->getBodyAsWritten())
+      body->walk(*this);
+    return ShouldNotRecurse;
+  }
   ShouldRecurse_t checkTemporarilyEscapable(MakeTemporarilyEscapableExpr *) {
     return ShouldRecurse;
   }
@@ -5622,6 +5633,19 @@ bool swift::isVariableEffectRow(Type declaredEffects) {
          (declaredEffects->isTypeParameter() ||
           declaredEffects->is<ArchetypeType>() ||
           declaredEffects->hasTypeVariable());
+}
+
+bool swift::effectPermits(const ProtocolDecl *declared,
+                          const ProtocolDecl *performed) {
+  return performed == declared || declared->inheritsFrom(performed);
+}
+
+bool swift::effectRowSubtypeOf(ArrayRef<ProtocolDecl *> subRow,
+                               ArrayRef<ProtocolDecl *> superRow) {
+  return llvm::all_of(subRow, [&](ProtocolDecl *p) {
+    return llvm::any_of(superRow,
+                        [&](ProtocolDecl *q) { return effectPermits(q, p); });
+  });
 }
 
 void TypeChecker::checkTopLevelEffects(TopLevelCodeDecl *code) {

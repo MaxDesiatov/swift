@@ -19,6 +19,7 @@
 #define SWIFT_SEMA_TYPECHECKEFFECTS_H
 
 #include "swift/AST/Type.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace swift {
@@ -68,6 +69,17 @@ SmallVector<ProtocolDecl *, 4> extractEffectProtocols(Type declaredEffects);
 /// / archetype) callers; the type-variable case is inert post-solution, where no
 /// type variables survive into a resolved decl interface type.
 bool isVariableEffectRow(Type declaredEffects);
+
+/// Whether a context, slot, or requirement declaring effect \p declared permits an
+/// operation that performs \p performed: they are identical, or \p declared refines
+/// \p performed (so \p performed is in \p declared's inherited closure). Refinement
+/// adds capability, so the refining protocol has the larger permitted set.
+bool effectPermits(const ProtocolDecl *declared, const ProtocolDecl *performed);
+
+/// Whether effect row \p subRow is a subtype of \p superRow: every effect in
+/// \p subRow is permitted (via effectPermits) by some effect in \p superRow.
+bool effectRowSubtypeOf(ArrayRef<ProtocolDecl *> subRow,
+                        ArrayRef<ProtocolDecl *> superRow);
 
 }
 

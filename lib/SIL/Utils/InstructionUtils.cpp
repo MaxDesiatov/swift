@@ -502,6 +502,25 @@ static bool knownToNotUseGenericMetadata(ApplySite &as) {
   return false;
 }
 
+/// Whether every substitution the apply forwards is one of the enclosing
+/// function's own primary archetypes, whose type metadata and abstract witness
+/// tables are passed-in ABI arguments in this frame: a genuine call reads them
+/// rather than instantiating metadata. Bound generics (Array<T>) and local
+/// archetypes stay flagged, since their metadata may be built at runtime;
+/// opened and pack archetypes are also passed-in reads but stay flagged here
+/// as a safe over-approximation.
+static bool substitutionsForwardEnclosingMetadata(ApplySite as) {
+  auto *env = as.getFunction()->getGenericEnvironment();
+  if (!env)
+    return false;
+  for (Type replacement : as.getSubstitutionMap().getReplacementTypes()) {
+    auto *archetype = replacement->getAs<PrimaryArchetypeType>();
+    if (!archetype || archetype->getGenericEnvironment() != env)
+      return false;
+  }
+  return true;
+}
+
 RuntimeEffect swift::getRuntimeEffect(SILInstruction *inst, SILType &impactType) {
   auto ifNonTrivial = [&](SILType type, RuntimeEffect effect) -> RuntimeEffect {
     // Nonescaping closures are modeled with ownership to track borrows, but
@@ -1086,7 +1105,12 @@ RuntimeEffect swift::getRuntimeEffect(SILInstruction *inst, SILType &impactType)
       }
     }
 
-    if (!as.getSubstitutionMap().empty() && !knownToNotUseGenericMetadata(as))
+    // partial_apply is excluded: closure formation over a generic parameter
+    // stays flagged below.
+    bool forwardsEnclosingMetadata =
+        !isa<PartialApplyInst>(inst) && substitutionsForwardEnclosingMetadata(as);
+    if (!as.getSubstitutionMap().empty() && !knownToNotUseGenericMetadata(as) &&
+        !forwardsEnclosingMetadata)
       rt |= RuntimeEffect::MetaData;
     if (auto *pa = dyn_cast<PartialApplyInst>(inst)) {
       if (!pa->isOnStack())

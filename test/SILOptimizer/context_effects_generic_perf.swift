@@ -40,11 +40,20 @@ func readBox(_ b: Box<Never>) -> (() effects(Never) -> Void) { return b.f }
 // is part of the returned value's type, not this function's context.
 func makeNeverClosure(_ keep: C) -> (() effects(Never) -> Void) { return { _ = keep } }
 
-// Forwarding through another named generic function (not the closure parameter) passes an archetype
-// type argument, which needs runtime metadata: the pre-existing NoLocks generic-call rule fires,
-// exactly as it does for a concrete effects(Never) or @_noLocks generic caller.
+// Forwarding the caller's own archetype T to a named generic function is clean: T's
+// metadata is a passed-in ABI argument in this frame, so the call reads it rather than
+// instantiating it.
 func genericSink<T>(_ x: T) effects(Never) {}
 func forwardThroughNamed<T, E: Effect>(_ x: T, _ body: () effects(E) -> Void) effects(E) {
+  genericSink(x)
+}
+
+// Forwarding a bound generic (not a bare archetype) still diagnoses, because
+// Wrapper<T>'s metadata may be instantiated (swift_getGenericMetadata) rather
+// than passed in. Fails if the apply relaxation is ever broadened from
+// PrimaryArchetypeType to hasArchetype().
+struct Wrapper<T> {}
+func boundGenericCallStillDiagnosed<T>(_ x: Wrapper<T>) effects(Never) {
   genericSink(x) // expected-error {{generic function calls can cause metadata allocation or locks}}
 }
 

@@ -769,9 +769,7 @@ bool CompareDeclSpecializationRequest::evaluate(
                !isVariableEffectRow(effects2)) {
       auto set1 = extractEffectProtocols(effects1);
       auto set2 = extractEffectProtocols(effects2);
-      if (!llvm::all_of(set1, [&](ProtocolDecl *p) {
-            return llvm::is_contained(set2, p);
-          }))
+      if (!effectRowSubtypeOf(set1, set2))
         knownNonSubtype = true;
     }
   }

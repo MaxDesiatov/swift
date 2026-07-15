@@ -141,3 +141,25 @@ extension Wrapper: PureProtocol where T: PureProtocol {
 // The parser now accepts `get effects(...)` on accessors. Witness matching for
 // a pure-effects accessor still needs getEffectfulGetAccessor() to recognize it
 // (it gates on async/throws), so no witness assertion is added here yet.
+
+// === Step 10: Refinement witness matching (both directions) ===
+
+protocol Sup: Effect {}
+protocol Sub: Sup {}
+
+// Witness performs a parent effect (does less) -> satisfies a child-effect requirement.
+protocol ReqSub {
+  func g() effects(Sub)
+}
+struct WSupForSub: ReqSub {
+  func g() effects(Sup) {} // OK
+}
+
+// Witness performs a refined effect (does more), so it does not satisfy a
+// parent-effect requirement.
+protocol ReqSup {
+  func f() effects(Sup) // expected-note {{protocol requires function 'f()' with type '() effects(Sup) -> ()'}}
+}
+struct WSubForSup: ReqSup { // expected-error {{type 'WSubForSup' does not conform to protocol 'ReqSup'}} expected-note {{add stubs for conformance}}
+  func f() effects(Sub) {} // expected-note {{candidate does not satisfy effects('Sup') effect restriction of protocol requirement}}
+}

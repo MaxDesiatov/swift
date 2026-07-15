@@ -2920,13 +2920,10 @@ matchFunctionThrowing(ConstraintSystem &cs,
 }
 
 /// Match the declared-effects rows of two function types: a function performing
-/// fewer effects is a subtype of one performing more. Only two present rows are
-/// ordered, by protocol identity (as the effects walker compares them);
-/// effects(Never) is the empty set (the bottom) and an absent row is the top. An
-/// absent<->concrete conversion stays permissive, because a bare closure adopts
-/// its target's row and the effects walker enforces calls, not this conversion.
-/// A type-parameter/archetype/type-variable row is not a concrete set, so the
-/// order does not apply; it is bound against the other row to infer the effect.
+/// fewer effects is a subtype of one performing more. An absent-vs-concrete
+/// conversion stays permissive, because a bare closure adopts its target's row
+/// and the effects walker enforces calls in checkApplyFunctionType, not this
+/// conversion.
 static ConstraintSystem::SolutionKind
 matchDeclaredEffects(ConstraintSystem &cs, FunctionType *func1,
                      FunctionType *func2, ConstraintKind kind,
@@ -2962,20 +2959,18 @@ matchDeclaredEffects(ConstraintSystem &cs, FunctionType *func1,
   auto set1 = extractEffectProtocols(row1);
   auto set2 = extractEffectProtocols(row2);
 
-  // func1 <: func2 iff set(func1) is a subset (by protocol identity) of set(func2).
-  auto subsetOf = [](ArrayRef<ProtocolDecl *> a, ArrayRef<ProtocolDecl *> b) {
-    return llvm::all_of(
-        a, [&](ProtocolDecl *p) { return llvm::is_contained(b, p); });
-  };
-
   bool matches;
   if (kind < ConstraintKind::Subtype) {
-    // Bind/Equal/BindParam/BindToPointerType: equal rows. Consistent with
-    // matchFunctionThrowing's treatment of these kinds for concrete rows.
-    matches = subsetOf(set1, set2) && subsetOf(set2, set1);
+    // Refinement participates only in the subtype direction, not here,
+    // mirroring matchFunctionThrowing's exact-match rule for kind < Subtype.
+    auto identityContained = [](ArrayRef<ProtocolDecl *> a,
+                                ArrayRef<ProtocolDecl *> b) {
+      return llvm::all_of(
+          a, [&](ProtocolDecl *p) { return llvm::is_contained(b, p); });
+    };
+    matches = identityContained(set1, set2) && identityContained(set2, set1);
   } else {
-    // Subtype/Conversion: func1's row must be a subtype of func2's.
-    matches = subsetOf(set1, set2);
+    matches = effectRowSubtypeOf(set1, set2);
   }
 
   if (matches)

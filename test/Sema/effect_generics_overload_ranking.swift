@@ -18,11 +18,14 @@
 @_spi(ExperimentalContextEffects) import Swift
 @_spi(ExperimentalContextEffects) public protocol A: Effect {}
 @_spi(ExperimentalContextEffects) public protocol B: Effect {}
+@_spi(ExperimentalContextEffects) public protocol Base2: Effect {}
+@_spi(ExperimentalContextEffects) public protocol Refined2: Base2 {}
 
 public func bottom(_ x: Int) effects(Never) -> Int { x }
 public func mid(_ x: Int) effects(Locking) -> Int { x }
 @_spi(ExperimentalContextEffects) public func comp(_ x: Int) effects(A & B) -> Int { x }
 @_spi(ExperimentalContextEffects) public func disjoint(_ x: Int) effects(A) -> Int { x }
+@_spi(ExperimentalContextEffects) public func ref(_ x: Int) effects(Refined2) -> Int { x }
 
 //--- Main.swift
 @_spi(ExperimentalContextEffects) import EffectLib
@@ -41,6 +44,12 @@ func usesMid() effects(Never) -> Int { mid(0) }
 // wins; legal in an effects(A) caller.
 func comp(_ x: Int) effects(A) -> Int { x }
 func usesComp() effects(A) -> Int { comp(0) }
+
+// effects(Base2) shim vs effects(Refined2) library (Refined2: Base2): the
+// less-refined effects(Base2) row is the tighter subtype, so the shim wins;
+// legal in an effects(Refined2) caller.
+func ref(_ x: Int) effects(Base2) -> Int { x }
+func usesRef() effects(Refined2) -> Int { ref(0) }
 
 //--- Disjoint.swift
 @_spi(ExperimentalContextEffects) import EffectLib

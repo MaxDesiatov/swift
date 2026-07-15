@@ -79,3 +79,12 @@ func testDoHandleCallsUnannotated() {
     unannotated() // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'effects' clause}}
   } handle MockFS() as FileSystem
 }
+
+func testDeferBodyPure() effects(Never) {
+  defer { _ = pureCallee() }
+  _ = pureCallee()
+}
+func testDeferBodyCallsUnannotated() effects(Never) {
+  defer { unannotated() } // expected-error {{call to 'unannotated()' is not allowed in a restricted effect context because it has no 'effects' clause}}
+  _ = pureCallee()
+}
