@@ -30,6 +30,7 @@ split_embedded_sources(
   ### -- PLEASE KEEP THIS LIST IN ALPHABETICAL ORDER ###
   EMBEDDED ASCII.swift
   EMBEDDED Algorithm.swift
+  EMBEDDED Allocation.swift
   EMBEDDED AnyHashable.swift
   EMBEDDED Array.swift
   EMBEDDED ArrayBody.swift

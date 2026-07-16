@@ -481,6 +481,13 @@ extension FunctionWorklist {
          global.mustBeInitializedStatically {
         pushIfNotVisited(f)
       }
+
+      // Seed effect-bound callers of effect-polymorphic functions here: the two
+      // rules above miss a tier-none caller, so the effect specialization and
+      // perf-constraint recompute would never run for it.
+      if f.isDefinition, f.seedsEffectSpecialization {
+        pushIfNotVisited(f)
+      }
     }
   }
 

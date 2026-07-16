@@ -2796,11 +2796,16 @@ static CanSILFunctionType getSILFunctionType(
         }
       }
 
-      // The built-in Locking effect has no handler; it lowers to a SIL
-      // performance constraint instead. Keep it out of handler synthesis.
+      // Locking and its refinements (e.g. the built-in Allocation) have no
+      // handler; they lower to a SIL performance constraint instead of
+      // handler synthesis, so they are erased here. A protocol refining both
+      // Locking and a handler-bearing effect is unsupported: erasing it drops
+      // that handler.
       if (auto *lockingProto =
               TC.Context.getProtocol(KnownProtocolKind::Locking)) {
-        llvm::erase(protocols, lockingProto);
+        llvm::erase_if(protocols, [&](ProtocolDecl *p) {
+          return p == lockingProto || p->inheritsFrom(lockingProto);
+        });
       }
 
       if (!protocols.empty()) {

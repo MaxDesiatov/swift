@@ -26,6 +26,15 @@ namespace Lowering {
 class SILGenFunctionBuilder;
 } // namespace Lowering
 
+/// Input must be a *resolved* declared-effects type
+/// (AbstractFunctionDecl::getResolvedDeclaredEffectsType), not a raw one.
+PerformanceConstraints perfConstraintsForEffectType(Type effects,
+                                                    ASTContext &ctx);
+
+/// True if `fn` applies an effect-polymorphic callee
+/// bound to a concrete effect.
+bool callerSeedsEffectSpecialization(SILFunction *fn);
+
 /// A class for creating SILFunctions in a specific SILModule.
 ///
 /// The intention is that this class is not used directly, but rather that each

@@ -352,6 +352,13 @@ final public class Function : CustomStringConvertible, HasShortDescription, Hash
     bridged.setIsPerformanceConstraint(isPerformanceConstraint)
   }
 
+  /// True if this function applies an effect-polymorphic callee bound to a
+  /// concrete effect, so it must be seeded into the mandatory specializer even
+  /// when it carries no performance constraint of its own.
+  public var seedsEffectSpecialization: Bool {
+    bridged.seedsEffectSpecialization()
+  }
+
   public enum InlineStrategy {
     case automatic
     case never

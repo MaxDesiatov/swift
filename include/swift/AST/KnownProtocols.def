@@ -121,6 +121,7 @@ PROTOCOL(UnsafeSendable)
 
 PROTOCOL(Effect)
 PROTOCOL(Locking)
+PROTOCOL(Allocation)
 
 PROTOCOL_(ObjectiveCBridgeable)
 PROTOCOL_(DestructorSafeContainer)

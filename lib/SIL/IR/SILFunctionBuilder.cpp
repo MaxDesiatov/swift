@@ -22,6 +22,7 @@
 #include "swift/AST/SemanticAttrs.h"
 #include "swift/Basic/Assertions.h"
 #include "swift/Basic/CodeGenerationModel.h"
+#include "swift/SIL/ApplySite.h"
 #include "clang/AST/Mangle.h"
 
 using namespace swift;
@@ -51,35 +52,98 @@ SILFunction *SILFunctionBuilder::getOrCreateFunction(
 
 // A restrictive context-effect row enforces the same runtime guarantees as the
 // @_noLocks / @_noAllocation attributes: effects(Never) permits nothing,
-// effects(Locking) permits locking but not allocation. Any broader or absent
-// row is unconstrained.
-static PerformanceConstraints
-perfConstraintsForDeclaredEffects(AbstractFunctionDecl *afd, ASTContext &ctx) {
-  Type effects = afd->getResolvedDeclaredEffectsType();
+// effects(Locking) permits locking but not allocation, effects(Allocation)
+// permits allocation and deallocation (hence class refcounting) as well as
+// locking. Any broader or absent row is unconstrained.
+PerformanceConstraints
+swift::perfConstraintsForEffectType(Type effects, ASTContext &ctx) {
   if (!effects)
     return PerformanceConstraints::None;
 
   if (effects->isNever())
     return PerformanceConstraints::NoLocks;
 
-  // A polymorphic effects(E) row (type parameter / archetype) can bind to Never, so the
-  // function's own body must satisfy the strongest handler-less constraint. Mirrors
-  // isEffectVariable in lib/Sema/TypeCheckEffects.cpp. The forwarded closure-parameter call is
-  // trusted separately by PerformanceDiagnostics (already checked at the call site).
+  // A polymorphic effects(E) row (type parameter / archetype) can bind to
+  // Never, so the function's own body must satisfy the strongest handler-less
+  // constraint. Mirrors isVariableEffectRow in lib/Sema/TypeCheckEffects.cpp.
+  // The forwarded closure-parameter call is trusted separately by
+  // PerformanceDiagnostics (already checked at the call site).
   if (ctx.LangOpts.hasFeature(Feature::ContextEffects) &&
       (effects->isTypeParameter() || effects->is<ArchetypeType>()))
     return PerformanceConstraints::NoLocks;
 
-  if (auto *lockingProto = ctx.getProtocol(KnownProtocolKind::Locking)) {
-    Type constraint = effects;
-    if (auto *et = constraint->getAs<ExistentialType>())
-      constraint = et->getConstraintType();
-    if (auto *pt = constraint->getAs<ProtocolType>())
-      if (pt->getDecl() == lockingProto)
-        return PerformanceConstraints::NoAllocation;
+  Type constraint = effects;
+  if (auto *et = constraint->getAs<ExistentialType>())
+    constraint = et->getConstraintType();
+
+  auto *allocProto = ctx.getProtocol(KnownProtocolKind::Allocation);
+  auto *lockingProto = ctx.getProtocol(KnownProtocolKind::Locking);
+
+  // Allocation refines Locking, so a composition with both permits allocation;
+  // check Allocation before treating a Locking member as NoAllocation.
+  if (auto *comp = constraint->getAs<ProtocolCompositionType>()) {
+    bool hasLocking = false;
+    for (Type member : comp->getMembers()) {
+      auto *pt = member->getAs<ProtocolType>();
+      if (!pt)
+        continue;
+      ProtocolDecl *pd = pt->getDecl();
+      if (pd == allocProto)
+        return PerformanceConstraints::None;
+      if (pd == lockingProto)
+        hasLocking = true;
+    }
+    return hasLocking ? PerformanceConstraints::NoAllocation
+                      : PerformanceConstraints::None;
+  }
+
+  if (auto *pt = constraint->getAs<ProtocolType>()) {
+    ProtocolDecl *pd = pt->getDecl();
+    if (pd == allocProto)
+      return PerformanceConstraints::None;
+    if (pd == lockingProto)
+      return PerformanceConstraints::NoAllocation;
   }
 
   return PerformanceConstraints::None;
+}
+
+static PerformanceConstraints
+perfConstraintsForDeclaredEffects(AbstractFunctionDecl *afd, ASTContext &ctx) {
+  return swift::perfConstraintsForEffectType(
+      afd->getResolvedDeclaredEffectsType(), ctx);
+}
+
+// True if `fn` directly applies an effect-polymorphic callee whose
+// declared-effects row binds to a concrete effect at that call. GenericCloner
+// reclassifies the specialized callee's performance constraint from the
+// substituted row, so a tier-None caller must be seeded into the mandatory
+// specializer's worklist.
+bool swift::callerSeedsEffectSpecialization(SILFunction *fn) {
+  ASTContext &ctx = fn->getModule().getASTContext();
+  if (!ctx.LangOpts.hasFeature(Feature::ContextEffects))
+    return false;
+  for (SILBasicBlock &bb : *fn) {
+    for (SILInstruction &inst : bb) {
+      auto as = FullApplySite::isa(&inst);
+      if (!as)
+        continue;
+      SILFunction *callee = as.getReferencedFunctionOrNull();
+      if (!callee)
+        continue;
+      auto *afd = callee->getDeclRef().getAbstractFunctionDecl();
+      if (!afd)
+        continue;
+      Type eff = afd->getResolvedDeclaredEffectsType();
+      if (!eff || !(eff->isTypeParameter() || eff->is<ArchetypeType>()))
+        continue;
+      Type substEff = eff.subst(as.getSubstitutionMap());
+      if (substEff && !substEff->isTypeParameter() &&
+          !substEff->is<ArchetypeType>())
+        return true;
+    }
+  }
+  return false;
 }
 
 void SILFunctionBuilder::addFunctionAttributes(

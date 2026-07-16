@@ -575,6 +575,7 @@ struct BridgedFunction {
   BRIDGED_INLINE bool hasDynamicSelfMetadata() const;
   BRIDGED_INLINE EffectsKind getEffectAttribute() const;
   BRIDGED_INLINE PerformanceConstraints getPerformanceConstraints() const;
+  bool seedsEffectSpecialization() const;
   BRIDGED_INLINE InlineStrategy getInlineStrategy() const;
   BRIDGED_INLINE ABILanguage getSILFunctionLanguage() const;
   BRIDGED_INLINE SerializedKind getSerializedKind() const;

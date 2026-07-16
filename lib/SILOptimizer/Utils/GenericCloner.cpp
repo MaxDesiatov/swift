@@ -12,12 +12,14 @@
 
 #include "swift/SILOptimizer/Utils/GenericCloner.h"
 
+#include "swift/AST/Decl.h"
 #include "swift/AST/Type.h"
 #include "swift/Basic/Assertions.h"
 #include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/SILArgument.h"
 #include "swift/SIL/SILBasicBlock.h"
 #include "swift/SIL/SILFunction.h"
+#include "swift/SIL/SILFunctionBuilder.h"
 #include "swift/SIL/SILInstruction.h"
 #include "swift/SIL/SILModule.h"
 #include "swift/SIL/SILValue.h"
@@ -88,6 +90,23 @@ SILFunction *GenericCloner::createDeclaration(
     NewF->setOwnershipEliminated();
   }
   NewF->copyEffects(Orig);
+
+  // ContextEffects: copyEffects does not carry the perf-constraint enum, so
+  // the clone keeps createFunction's default None. Leaving it None makes
+  // PerformanceDiagnostics skip a restrictive instantiation, unsoundly
+  // accepting the refcount/allocation it must reject. The effects row lives
+  // only on the AST function type, so read the substituted row from Orig's
+  // decl, not the lowered SIL type.
+  ASTContext &ctx = Orig->getModule().getASTContext();
+  if (ctx.LangOpts.hasFeature(Feature::ContextEffects)) {
+    if (auto *afd = Orig->getDeclRef().getAbstractFunctionDecl()) {
+      if (Type eff = afd->getResolvedDeclaredEffectsType()) {
+        Type substEff = eff.subst(ReInfo.getCalleeParamSubstitutionMap());
+        NewF->setPerfConstraints(
+            swift::perfConstraintsForEffectType(substEff, ctx));
+      }
+    }
+  }
   return NewF;
 }
 

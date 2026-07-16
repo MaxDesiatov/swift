@@ -27,6 +27,7 @@
 #include "swift/SIL/OwnershipUtils.h"
 #include "swift/SIL/ParseTestSpecification.h"
 #include "swift/SIL/SILBuilder.h"
+#include "swift/SIL/SILFunctionBuilder.h"
 #include "swift/SIL/SILGlobalVariable.h"
 #include "swift/SIL/SILNode.h"
 #include "swift/SIL/Test.h"
@@ -348,6 +349,10 @@ bool BridgedFunction::isAutodiffVJP() const {
   }
 
   return false;
+}
+
+bool BridgedFunction::seedsEffectSpecialization() const {
+  return swift::callerSeedsEffectSpecialization(getFunction());
 }
 
 //===----------------------------------------------------------------------===//

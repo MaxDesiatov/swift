@@ -30,3 +30,27 @@ func lockingCaller(_ c: C) effects(Locking) -> C {
     return c
   } // expected-error {{ending the lifetime of a value of type 'C' can cause a deallocation}}
 }
+
+
+func allocationCaller(_ c: C) effects(Allocation) -> C {
+  return withExtendedLifetime(c) { () effects(Allocation) in
+    return c
+  }
+}
+
+
+// Specialization is keyed on the substituted Eff, not the caller's effect: a stricter
+// closure effect is enforced on the passed closure regardless of the caller's effect.
+
+func allocationCallerLockingClosure(_ c: C) effects(Allocation) -> C {
+  return withExtendedLifetime(c) { () effects(Locking) in
+    return c
+  }
+}
+
+
+func allocationCallerNeverClosure(_ c: C) effects(Allocation) -> C {
+  return withExtendedLifetime(c) { () effects(Never) in // expected-note {{called from here}}
+    return c // expected-error {{this code performs reference counting operations which can cause locking}}
+  }
+}

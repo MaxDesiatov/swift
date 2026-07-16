@@ -240,6 +240,7 @@
     "AtomicInt.swift",
     "Effect.swift",
     "Locking.swift",
+    "Allocation.swift",
     "Sendable.swift",
     "ErrorType.swift",
     "Identifiable.swift",
