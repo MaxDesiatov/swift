@@ -110,8 +110,24 @@ swift::perfConstraintsForEffectType(Type effects, ASTContext &ctx) {
 
 static PerformanceConstraints
 perfConstraintsForDeclaredEffects(AbstractFunctionDecl *afd, ASTContext &ctx) {
-  return swift::perfConstraintsForEffectType(
-      afd->getResolvedDeclaredEffectsType(), ctx);
+  Type eff = afd->getResolvedDeclaredEffectsType();
+  // A constrained variable row is at least as capable as its bound on every
+  // binding, so classify it by that bound. Unconstrained Eff : Effect can bind
+  // Never, so it falls through to perfConstraintsForEffectType's NoLocks.
+  // requiresProtocol needs the generic signature (only available here) and
+  // asserts a type parameter, which getResolvedDeclaredEffectsType returns.
+  if (eff && ctx.LangOpts.hasFeature(Feature::ContextEffects) &&
+      eff->isTypeParameter()) {
+    if (auto sig = afd->getGenericSignature()) {
+      auto *allocProto = ctx.getProtocol(KnownProtocolKind::Allocation);
+      auto *lockingProto = ctx.getProtocol(KnownProtocolKind::Locking);
+      if (allocProto && sig->requiresProtocol(eff, allocProto))
+        return PerformanceConstraints::None;
+      if (lockingProto && sig->requiresProtocol(eff, lockingProto))
+        return PerformanceConstraints::NoAllocation;
+    }
+  }
+  return swift::perfConstraintsForEffectType(eff, ctx);
 }
 
 // True if `fn` directly applies an effect-polymorphic callee whose

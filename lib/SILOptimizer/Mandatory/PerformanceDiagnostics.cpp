@@ -718,7 +718,18 @@ void PerformanceDiagnostics::checkNonAnnotatedFunction(SILFunction *function) {
       if (callee->getPerfConstraints() == PerformanceConstraints::None)
         continue;
 
-      if (checkClosureArguments(as, /*acceptFunctionArgs=*/ false,
+      // Trust a closure the thunk received as an argument and forwards to the
+      // target: Sema already checked it against the enclosing context's effect
+      // row, so re-diagnosing it here is a false positive. Back-deployed and
+      // distributed thunks are excluded: their bodies are not pure forwarders.
+      IsThunk_t thunkKind = function->isThunk();
+      bool isForwardingThunk = thunkKind == IsThunk ||
+                               thunkKind == IsReabstractionThunk ||
+                               thunkKind == IsSignatureOptimizedThunk;
+      bool acceptForwardedArgs =
+          isForwardingThunk &&
+          module.getASTContext().LangOpts.hasFeature(Feature::ContextEffects);
+      if (checkClosureArguments(as, /*acceptFunctionArgs=*/ acceptForwardedArgs,
                                 callee->getPerfConstraints(),
                                 /*LocWithParent*/ nullptr)) {
         return;

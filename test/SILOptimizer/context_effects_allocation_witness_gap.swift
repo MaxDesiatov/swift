@@ -1,24 +1,24 @@
 // RUN: %target-swift-frontend -parse-as-library -enable-experimental-feature ContextEffects -emit-sil %s -o /dev/null -verify
 // REQUIRES: swift_feature_ContextEffects
 
-// Per-instantiation effect specialization seeds only on direct applies
-// (getReferencedFunctionOrNull), so an effect-generic requirement reached
-// through witness dispatch is never specialized and stays rejected.
+// A witness that forwards its effect by MATERIALIZING a generic closure (rather
+// than forwarding its own closure parameter) is still rejected: the closure
+// literal needs type metadata under the abstract-row tier. This is a separate
+// limitation from the pure-forwarding case, which is accepted.
 
 @_spi(ExperimentalContextEffects) import Swift
 
 class C {}
 
-protocol P {
+func withExtendedLifetime<T: ~Copyable & ~Escapable, Eff: Effect, F: Error, R: ~Copyable>(
+  _ x: borrowing T, _ body: () effects(Eff) throws(F) -> R
+) effects(Eff) throws(F) -> R { defer { extendLifetime(x) }; return try body() }
+
+protocol Wrapper {
   func wrap<Eff: Effect>(_ c: C, _ body: () effects(Eff) -> C) effects(Eff) -> C
 }
-
-struct S: P {
-  func wrap<Eff: Effect>(_ c: C, _ body: () effects(Eff) -> C) effects(Eff) -> C { // expected-error {{called function is not known at compile time and can have unpredictable performance}}
-    return body()
+struct S: Wrapper {
+  func wrap<Eff: Effect>(_ c: C, _ body: () effects(Eff) -> C) effects(Eff) -> C {
+    return withExtendedLifetime(c) { () effects(Eff) in return body() } // expected-error {{generic closures or local functions can cause metadata allocation or locks}}
   }
-}
-
-func viaWitness(_ p: any P, _ c: C) effects(Allocation) -> C {
-  return p.wrap(c) { () effects(Allocation) in return c }
 }
