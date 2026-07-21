@@ -11,8 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "performance-diagnostics"
+#include "swift/AST/Decl.h"
 #include "swift/AST/DiagnosticsSIL.h"
+#include "swift/AST/GenericSignature.h"
 #include "swift/AST/SemanticAttrs.h"
+#include "swift/AST/Types.h"
 #include "swift/SIL/BasicBlockDatastructures.h"
 #include "swift/SIL/InstructionUtils.h"
 #include "swift/SIL/ApplySite.h"
@@ -700,6 +703,37 @@ bool PerformanceDiagnostics::visitInst(SILInstruction *inst,
   return false;
 }
 
+/// True when `function` only forwards closure arguments to its callees, so any
+/// forwarded closure was already effect-checked at the forwarding site and must
+/// not be re-diagnosed here. An Allocation-refined effect row qualifies because
+/// that tier is None, which permits the metadata a forwarded generic call may
+/// instantiate.
+static bool trustsForwardedClosureArgs(SILFunction *function) {
+  ASTContext &ctx = function->getModule().getASTContext();
+  if (!ctx.LangOpts.hasFeature(Feature::ContextEffects))
+    return false;
+  switch (function->isThunk()) {
+  case IsThunk:
+  case IsReabstractionThunk:
+  case IsSignatureOptimizedThunk:
+    return true;
+  default:
+    break;
+  }
+  auto *dc = function->getDeclContext();
+  auto *afd = dc ? dyn_cast_or_null<AbstractFunctionDecl>(dc->getAsDecl()) : nullptr;
+  if (!afd)
+    return false;
+  Type eff = afd->getResolvedDeclaredEffectsType();
+  if (!eff || !eff->isTypeParameter())
+    return false;
+  auto sig = afd->getGenericSignature();
+  if (!sig)
+    return false;
+  auto *allocProto = ctx.getProtocol(KnownProtocolKind::Allocation);
+  return allocProto && sig->requiresProtocol(eff, allocProto);
+}
+
 void PerformanceDiagnostics::checkNonAnnotatedFunction(SILFunction *function) {
   for (SILBasicBlock &block : *function) {
     for (SILInstruction &inst : block) {
@@ -718,20 +752,10 @@ void PerformanceDiagnostics::checkNonAnnotatedFunction(SILFunction *function) {
       if (callee->getPerfConstraints() == PerformanceConstraints::None)
         continue;
 
-      // Trust a closure the thunk received as an argument and forwards to the
-      // target: Sema already checked it against the enclosing context's effect
-      // row, so re-diagnosing it here is a false positive. Back-deployed and
-      // distributed thunks are excluded: their bodies are not pure forwarders.
-      IsThunk_t thunkKind = function->isThunk();
-      bool isForwardingThunk = thunkKind == IsThunk ||
-                               thunkKind == IsReabstractionThunk ||
-                               thunkKind == IsSignatureOptimizedThunk;
-      bool acceptForwardedArgs =
-          isForwardingThunk &&
-          module.getASTContext().LangOpts.hasFeature(Feature::ContextEffects);
-      if (checkClosureArguments(as, /*acceptFunctionArgs=*/ acceptForwardedArgs,
-                                callee->getPerfConstraints(),
-                                /*LocWithParent*/ nullptr)) {
+      if (checkClosureArguments(
+              as, /*acceptFunctionArgs=*/ trustsForwardedClosureArgs(function),
+              callee->getPerfConstraints(),
+              /*LocWithParent*/ nullptr)) {
         return;
       }
     }
