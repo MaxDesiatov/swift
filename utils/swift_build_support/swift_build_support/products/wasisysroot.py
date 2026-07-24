@@ -34,8 +34,6 @@ class WASISysroot(product.Product):
         return False
 
     def should_build(self, host_target):
-        # WASI sysroot should always be built if standard library is being
-        # built for WebAssembly.
         return self.args.build_wasistdlib
 
     def should_test(self, host_target):
@@ -55,27 +53,50 @@ class WASISysroot(product.Product):
             enable_wasi_threads=True,
             compiler_rt_os_dir='wasip1',
             target_triple='wasm32-wasip1-threads')
-        self._build_target(
-            host_target,
-            enable_wasi_threads=False,
-            compiler_rt_os_dir='wasip2',
-            target_triple='wasm32-wasip2')
+        if self.args.wasi_libc_component_tools_path:
+            self._build_target(
+                host_target,
+                enable_wasi_threads=False,
+                compiler_rt_os_dir='wasip2',
+                target_triple='wasm32-wasip2')
+
+    @staticmethod
+    def _find_component_tool(tools_dir, *names):
+        # Not shutil.which: its path= argument is split on os.pathsep.
+        for name in names:
+            candidate = os.path.join(tools_dir, name)
+            if os.path.isfile(candidate):
+                return candidate
+        return None
 
     def _wasm_component_tool_paths(self, host_target):
-        # wasip2/p3 wasi-libc pulls in the Rust `wasm-tools` (`component embed`)
-        # and `wasm-component-ld` (`-fuse-ld`). Forward native WasmKit drop-ins
-        # when available: an explicit override path wins; otherwise the binaries
-        # the WasmKit product just built. Returns (None, None) when neither is
-        # available, leaving wasi-libc's own find_program/ba_download intact.
-        wasm_tools = self.args.wasi_libc_wasm_tools_path
-        component_ld = self.args.wasi_libc_component_ld_path
-        if (not wasm_tools or not component_ld) and self.args.build_wasmkit:
+        # The component-embedding tool and link driver the wasip2 wasi-libc
+        # build needs; (None, None) leaves wasi-libc's own discovery intact.
+        tools_dir = self.args.wasi_libc_component_tools_path
+        if tools_dir:
+            wasm_tools = self._find_component_tool(
+                tools_dir, 'wasmkit', 'wasm-tools')
+            component_ld = self._find_component_tool(
+                tools_dir, 'wasmkit-component-ld', 'wasm-component-ld')
+            if wasm_tools and component_ld:
+                return wasm_tools, component_ld
+            if self.args.dry_run:
+                # A dry-run can precede the tools being built; do not fail.
+                return (wasm_tools or os.path.join(tools_dir, 'wasmkit'),
+                        component_ld
+                        or os.path.join(tools_dir, 'wasmkit-component-ld'))
+            print(f'error: --wasi-libc-component-tools-path={tools_dir} must '
+                  'contain executable component tools (wasmkit or wasm-tools, '
+                  'and wasmkit-component-ld or wasm-component-ld); check they '
+                  'exist and are executable', file=sys.stderr)
+            sys.exit(1)
+        if self.args.build_wasmkit:
             build_root = os.path.dirname(self.build_dir)
-            wasmkit_build_dir = os.path.join(build_root, 'wasmkit-%s' % host_target)
-            wasm_tools = wasm_tools or wasmkit.WasmKit.cli_file_path(wasmkit_build_dir)
-            component_ld = component_ld or \
-                wasmkit.WasmKit.component_ld_file_path(wasmkit_build_dir)
-        return wasm_tools, component_ld
+            wasmkit_build_dir = os.path.join(build_root,
+                                             'wasmkit-%s' % host_target)
+            return (wasmkit.WasmKit.cli_file_path(wasmkit_build_dir),
+                    wasmkit.WasmKit.component_ld_file_path(wasmkit_build_dir))
+        return None, None
 
     def _toolchain_paths(self, host_target):
         if self.args.build_runtime_with_host_compiler:
@@ -219,9 +240,8 @@ class WASISysroot(product.Product):
         cmake.cmake_options.define('TARGET_TRIPLE:STRING', target_triple)
         cmake.cmake_options.define('BUILTINS_LIB:FILEPATH', builtins_lib_path)
 
-        # Forward native replacements for the Rust component tools. Setting these
-        # cache vars makes wasi-libc's find_program a no-op and skips its
-        # ba_download fallback; consumed only by the non-p1 (component) build.
+        # Setting these cache vars makes wasi-libc's find_program a no-op and
+        # skips its ba_download fallback; consumed only by the component build.
         if wasm_tools_path:
             cmake.cmake_options.define('WASM_TOOLS_EXECUTABLE:FILEPATH', wasm_tools_path)
         if component_ld_path:
