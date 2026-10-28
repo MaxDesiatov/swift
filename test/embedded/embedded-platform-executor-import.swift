@@ -90,3 +90,9 @@ func asyncMain() -> Never {
     }
   }
 }
+
+// EmbeddedPlatform+Concurrency.h declares the main-executor functions.
+let mainExecutorFunctions = (
+  _swift_concurrency_enqueueMainExecutor,
+  _swift_concurrency_getMainExecutor,
+  _swift_concurrency_isMainExecutor)

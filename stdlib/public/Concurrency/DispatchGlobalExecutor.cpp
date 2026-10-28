@@ -14,7 +14,7 @@
 ///
 /// It defines the Dispatch-specific functions for the runtime and, in
 /// Embedded builds, the executor entrypoints declared in
-/// EmbeddedPlatform+Concurrency.h and ExecutorImpl.h.
+/// EmbeddedPlatform+Concurrency.h.
 ///
 ///===------------------------------------------------------------------===///
 

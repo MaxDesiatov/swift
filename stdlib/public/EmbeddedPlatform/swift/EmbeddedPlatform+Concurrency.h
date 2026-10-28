@@ -30,6 +30,25 @@ extern "C" {
 void _swift_concurrency_enqueueGlobal(SwiftJob * EMBEDDED_SWIFT_NONNULL job);
 
 /**
+ * Enqueues a job on the main executor, which may be the global executor.
+ */
+void _swift_concurrency_enqueueMainExecutor(
+    SwiftJob * EMBEDDED_SWIFT_NONNULL job);
+
+/**
+ * Returns a reference to the main executor.
+ */
+SwiftExecutorRef _swift_concurrency_getMainExecutor(void);
+
+/**
+ * Returns whether the given executor is the main executor.
+ *
+ * This function must not call `swift_executor_isMain` from
+ * `swift/ExecutorImpl.h`, which calls it.
+ */
+bool _swift_concurrency_isMainExecutor(SwiftExecutorRef executor);
+
+/**
  * Runs jobs on the calling thread.
  *
  * An `async` main function calls this function after running its main task up
